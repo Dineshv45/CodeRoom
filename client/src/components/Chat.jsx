@@ -1,12 +1,19 @@
+import { useEffect, useRef } from "react";
+
 function Chat({ messages, chatInput, setChatInput, onSend, myUsername }) {
 
-  
+  const bottomRef = useRef(null);
+
   function formatTime(timestamp) {
   return new Date(timestamp).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
 }
+
+useEffect(()=>{
+  bottomRef.current?.scrollIntoView({behaviour: "smooth"});
+}, [messages]);
 
   return (
     <>
@@ -52,6 +59,7 @@ function Chat({ messages, chatInput, setChatInput, onSend, myUsername }) {
               </div>
             );
           })}
+           <div ref={bottomRef} />
         </div>
 
         {/* Input */}
