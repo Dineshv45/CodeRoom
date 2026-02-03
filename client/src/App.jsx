@@ -29,6 +29,7 @@ function App() {
           <Route path='/' element= {<Home />} />
 
           <Route path='/editor/:roomId' element = {<EditorPage />} />
+          <Route path='/editor/join' element = {<EditorPage />} />
         </Routes>
       </BrowserRouter>
    </>

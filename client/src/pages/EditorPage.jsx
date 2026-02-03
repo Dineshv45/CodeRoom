@@ -72,7 +72,6 @@ function EditorPage() {
 
     socketRef.current.emit(Actions.CHAT_MESSAGE, {
       roomId,
-      username: location.state?.username,
       text: chatInput,
     });
 
@@ -84,74 +83,72 @@ function EditorPage() {
 
     const init = async () => {
       socketRef.current = await initSocket();
-      socketRef.current.on("connect_error", (err) => handleErrors(err));
-      socketRef.current.on("connect_failed", (err) => handleErrors(err));
+
+      socketRef.current.on("connect_error", handleErrors);
+      socketRef.current.on("connect_failed", handleErrors);
 
       socketRef.current.emit(Actions.JOIN, {
-        roomId,
+        roomName: location.state?.roomName,
         username: location.state?.username,
+        password: location.state?.password,
       });
 
-      //listening for joined event
+
+
       socketRef.current.on(Actions.JOINED, ({ connectedUsers, username }) => {
-        if (username !== location.state?.username) {
-          toast.success(`${username} has joined room`);
+        if (username !== location.state.username) {
+          toast.success(`${username} joined the room`);
         }
         setUsers(connectedUsers);
       });
 
-      socketRef.current.on(Actions.CODE_CHANGE, ({ code }) => {
-        if (code !== null) {
-          codeRef.current = code;
-          editorRef.current?.updateCode(code);
-        }
-      });
-
-      //listening for code sync from server
-
       socketRef.current.on(Actions.SYNC_CODE, ({ code }) => {
-        if (code !== null) {
+        if (code != null) {
           codeRef.current = code;
-          // Small timeout ensures the Editor component is fully mounted/ready
           setTimeout(() => {
             editorRef.current?.updateCode(code);
           }, 100);
         }
       });
 
-      //chat messages
-
-      socketRef.current.on(Actions.CHAT_MESSAGE, ({ username, text, time }) => {
-        setMessages((msgs) => [...msgs, { username, text, time }]);
+      socketRef.current.on(Actions.CODE_CHANGE, ({ code }) => {
+        if (code != null) {
+          codeRef.current = code;
+          editorRef.current?.updateCode(code);
+        }
       });
 
-      //Listening for disconnected
+      socketRef.current.on(Actions.CHAT_HISTORY, setMessages);
+
+      socketRef.current.on(Actions.CHAT_MESSAGE, (msg) => {
+        setMessages((prev) => [...prev, msg]);
+      });
+
       socketRef.current.on(Actions.DISCONNECTED, ({ socketId, username }) => {
-        toast.success(`${username} has left room`);
-        setUsers((prev) => {
-          return prev.filter((user) => user.socketId !== socketId);
-        });
+        toast.success(`${username} left the room`);
+        setUsers((prev) => prev.filter(u => u.socketId !== socketId));
       });
     };
 
     init();
+
     return () => {
-      if (socketRef.current) {
-        socketRef.current.off(Actions.JOINED);
-        socketRef.current.off(Actions.DISCONNECTED);
-        socketRef.current.off(Actions.CODE_CHANGE);
-        socketRef.current.off(Actions.SYNC_CODE);
-        socketRef.current.off(Actions.CHAT_MESSAGE);
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      if (!socketRef.current) return;
+
+      socketRef.current.off(Actions.JOIN_SUCCESS);
+      socketRef.current.off(Actions.JOINED);
+      socketRef.current.off(Actions.SYNC_CODE);
+      socketRef.current.off(Actions.CODE_CHANGE);
+      socketRef.current.off(Actions.CHAT_MESSAGE);
+      socketRef.current.off(Actions.DISCONNECTED);
+
+      socketRef.current.disconnect();
+      socketRef.current = null;
     };
   }, []);
 
-  useEffect(() => {
-    console.log("EditorPage mounted");
-    return () => console.log("EditorPage unmounted");
-  }, []);
+
+
 
   if (!location.state) {
     return <Navigate to="/" />;
@@ -241,11 +238,10 @@ function EditorPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setActiveView("code")}
-              className={`px-4 py-1.5 rounded-md text-sm transition ${
-                activeView === "code"
+              className={`px-4 py-1.5 rounded-md text-sm transition ${activeView === "code"
                   ? "bg-blue-600 text-white"
                   : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-              }
+                }
                     `}
             >
               Code
@@ -253,11 +249,10 @@ function EditorPage() {
 
             <button
               onClick={() => setActiveView("chat")}
-              className={`px-4 py-1.5 rounded-md text-sm transition ${
-                activeView === "chat"
+              className={`px-4 py-1.5 rounded-md text-sm transition ${activeView === "chat"
                   ? "bg-blue-600 text-white"
                   : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-              }
+                }
                     `}
             >
               Chat

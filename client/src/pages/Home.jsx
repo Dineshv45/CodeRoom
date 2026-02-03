@@ -1,110 +1,191 @@
-import { useState } from "react";
-import codeEditorIcon from "../assets/code-editor-icon.png"
-import { v4 as uniqueId } from "uuid";
-import toast from "react-hot-toast"
+import { useEffect, useRef, useState } from "react";
+import codeEditorIcon from "../assets/code-editor-icon.png";
 import { useNavigate } from "react-router-dom";
+import { initSocket } from "../socket";
+import { Actions } from "../../../server/Actions";
+import toast from "react-hot-toast";
 
 function Home() {
-
   const navigate = useNavigate();
-  const [roomId, setRoomId] = useState('');
-  const [username, setUsername] = useState('');
+  const socketRef = useRef(null);
 
-  const createNewRoom = ((e) => {
-    const id = uniqueId();
-    setRoomId(id);
-    toast.success('Created new room')
+  const [username, setUsername] = useState("");
+  const [roomName, setRoomName] = useState("");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState({});
+  const [users, setUsers] = useState();
+
+
+  const roomNameRef = useRef("");
+const passwordRef = useRef("");
+const usernameRef = useRef("");
+
+
+  /* ---------- validation ---------- */
+  const validate = () => {
+    const newErrors = {};
+
+    if (!roomName.trim()) newErrors.roomName = "Room name is required";
+
+    if (!username.trim()) newErrors.username = "Username is required";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  /* ---------- create room ---------- */
+const createNewRoom = () => {
+  if (!validate()) return;
+
+  socketRef.current.emit(Actions.CREATE_ROOM, {
+    roomName,
+    password,
+    username,
   });
 
-  const joinRoom = () =>{
-    if(!roomId || !username){
-      toast.error('Room ID & username is required');
-      return;
-    }
+  toast.success("Created new room");
+};
 
-    //redirect
-    navigate(`/editor/${roomId}`, 
-      {
-        state:{
-          username,
-        },
-      }
-    )
-  }
+
+  /* ---------- join room ---------- */
+  const joinRoom = () => {
+    if (!validate()) return;
+
+    socketRef.current.emit(Actions.JOIN_CHECK, {
+      roomName,
+      password,
+      username,
+    });
+  };
 
   const handleInputEnter = (e) => {
-    if(e.code === 'Enter'){
-      joinRoom();
-    }
-  }
+    if (e.key === "Enter") joinRoom();
+  };
+
+
+
+useEffect(() => {
+  roomNameRef.current = roomName;
+  passwordRef.current = password;
+  usernameRef.current = username;
+}, [roomName, password, username]);
+
+useEffect(() => {
+  const init = async () => {
+    socketRef.current = await initSocket();
+
+    socketRef.current.on(Actions.CREATE_ROOM, ({ roomId }) => {
+      navigate(`/editor/${roomId}`, {
+        state: {
+          roomName: roomNameRef.current,
+          password: passwordRef.current,
+          username: usernameRef.current,
+        },
+      });
+    });
+
+    socketRef.current.on(Actions.JOIN_CONFIRM, ({ roomId }) => {
+      navigate(`/editor/${roomId}`, {
+        state: {
+          roomName: roomNameRef.current,
+          password: passwordRef.current,
+          username: usernameRef.current,
+        },
+      });
+    });
+
+    socketRef.current.on(Actions.ERROR, msg => {
+      setErrors({ server: msg });
+    });
+  };
+
+  init();
+  return () => socketRef.current?.disconnect();
+}, []);
+
+
   return (
-<>
-  <div className="w-screen h-screen flex items-center justify-center bg-neutral-950 px-4">
-    
-    <div className="w-full max-w-lg flex flex-col items-center">
-      
-      {/* Logo + Name */}
-      <div className="flex flex-col items-center mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <img
-            src={codeEditorIcon}
-            alt="Code Editor"
-            className="w-14 h-14"
-          />
-          <h1 className="text-3xl font-bold text-white tracking-wide">
-            Code<span className="text-blue-500">Room</span>
-          </h1>
+    <div className="w-screen h-screen flex items-center justify-center bg-neutral-950 px-4">
+      <div className="w-full max-w-lg flex flex-col items-center">
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <img src={codeEditorIcon} className="w-14 h-14" />
+            <h1 className="text-3xl font-bold text-white">
+              Code<span className="text-blue-500">Room</span>
+            </h1>
+          </div>
+          <p className="text-sm text-neutral-400">
+            Real-time collaborative code editor
+          </p>
         </div>
 
-        <p className="text-sm text-neutral-400 text-center">
-          Real-time collaborative code editor
-        </p>
-      </div>
+        {/* Form */}
+        <div className="w-full space-y-4">
+          {/* Room name */}
+          <div>
+            <input
+              type="text"
+              placeholder="ROOM NAME"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              onKeyUp={handleInputEnter}
+              className="w-full px-4 py-3 rounded-md bg-neutral-800 text-white border border-neutral-700 focus:ring-2 focus:ring-blue-600"
+            />
+            {errors.roomName && (
+              <p className="text-sm text-red-400 mt-1">{errors.roomName}</p>
+            )}
+          </div>
 
-      {/* Form */}
-      <div className="w-full space-y-4">
-        
-        <input
-          type="text"
-          placeholder="ROOM ID"
-          value={roomId}
-          onChange={(e) => setRoomId(e.target.value)}
-          onKeyUp={handleInputEnter}
-          className="w-full px-4 py-3 rounded-md bg-neutral-800 text-white placeholder-neutral-400 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-600"
-        />
+          {/* Password */}
+          <input
+            type="password"
+            placeholder="PASSWORD (optional)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-4 py-3 rounded-md bg-neutral-800 text-white border border-neutral-700"
+          />
 
-        <input
-          type="text"
-          placeholder="USERNAME"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          onKeyUp={handleInputEnter}
-          className="w-full px-4 py-3 rounded-md bg-neutral-800 text-white placeholder-neutral-400 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-600"
-        />
+          {/* Username */}
+          <div>
+            <input
+              type="text"
+              placeholder="USERNAME"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onKeyUp={handleInputEnter}
+              className="w-full px-4 py-3 rounded-md bg-neutral-800 text-white border border-neutral-700 focus:ring-2 focus:ring-blue-600"
+            />
+            {errors.username && (
+              <p className="text-sm text-red-400 mt-1">{errors.username}</p>
+            )}
+          </div>
 
-        <button
-          onClick={joinRoom}
-          className="w-full py-3 rounded-md bg-blue-600 hover:bg-blue-700 transition text-white font-medium"
-        >
-          Join Room
-        </button>
+          {/* Server error */}
+          {errors.server && (
+            <p className="text-sm text-red-400 text-center">{errors.server}</p>
+          )}
 
-        <p className="text-sm text-neutral-400 text-center">
-          Don’t have an invite?{" "}
           <button
-            onClick={createNewRoom}
-            className="text-blue-500 hover:text-blue-400 font-medium underline-offset-4 hover:underline transition"
+            onClick={joinRoom}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-md text-white"
           >
-            Create Room
+            Join Room
           </button>
-        </p>
+
+          <p className="text-sm text-neutral-400 text-center">
+            Don’t have an invite?{" "}
+            <button
+              onClick={createNewRoom}
+              className="text-blue-500 hover:underline"
+            >
+              Create Room
+            </button>
+          </p>
+        </div>
       </div>
-
     </div>
-  </div>
-</>
-
-  )
+  );
 }
 
-export default Home
+export default Home;

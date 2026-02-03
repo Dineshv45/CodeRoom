@@ -1,11 +1,20 @@
 export const Actions = {
-    JOIN : 'join',
-    JOINED: 'joined',
-    DISCONNECTED: 'disconnected',
-    CODE_CHANGE: 'CODE_CHANGE',
-    SYNC_CODE: 'sync-code',
-    LEAVE: 'leave',
+  JOIN: "join",
+  JOINED: "joined",
+  JOIN_SUCCESS: "join-success",
+  JOIN_CHECK:"join-check",
+  JOIN_CONFIRM: "join-confirm",
 
-    CHAT_MESSAGE : "chat-message",
+  CREATE_ROOM: "create-room",
+
+  CODE_CHANGE: "CODE_CHANGE",
+  SYNC_CODE: "sync-code",
+
+  CHAT_MESSAGE: "chat-message",
+  CHAT_HISTORY: "chat-history",
+
+  DISCONNECTED: "disconnected",
+  LEAVE: "leave",
+
+  ERROR: "error-message", 
 };
-
