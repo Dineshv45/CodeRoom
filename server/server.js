@@ -21,58 +21,92 @@ const io = new Server(server, {
   cors: { origin: "*" },
 });
 
-const userSocketMap = {};
+// {userId, userName}
+const userSocketMap = {
+};
 
 const getAllConnectedUsers = (roomId) => {
   return Array.from(io.sockets.adapter.rooms.get(roomId) || []).map(
-    (socketId) => ({
-      socketId,
-      username: userSocketMap[socketId],
-    })
+    (socketId) => {
+      const user = userSocketMap[socketId];
+      return {
+        socketId,
+        userId: user?.userId,
+        userName: user?.userName,
+      };
+    },
   );
 };
 
 io.on("connection", (socket) => {
-
   /* ================= CREATE ROOM ================= */
-  socket.on(Actions.CREATE_ROOM, async ({ roomName, password, username }) => {
-    const existing = await Room.findOne({ roomName });
-    if (existing) {
-      socket.emit(Actions.ERROR, "Room name already exists");
-      return;
-    }
+  socket.on(
+    Actions.CREATE_ROOM,
+    async ({ userId, roomName, password, userName }) => {
 
-    const roomId = uuidv4();
+      const existing = await Room.findOne({ roomName });
 
-    await Room.create({
-      roomId,
-      roomName,
-      createdBy: username,
-      isProtected: !!password,
-      passwordHash: password ? await bcrypt.hash(password, 10) : null,
-    });
+  
+      if (existing) {
+        socket.emit(Actions.ERROR, "Room name already exists");
+        return;
+      }
 
-    await Code.create({
-      roomId,
-      content: "Start Building...",
-    });
+      const roomId = uuidv4();
 
-    userSocketMap[socket.id] = username;
+      await Room.create({
+        roomId,
+        roomName,
+        createdBy: { userId, userName },
+        isProtected: !!password,
+        passwordHash: password ? await bcrypt.hash(password, 10) : null,
+      });
 
-    socket.join(roomId);
+      await Code.create({
+        roomId,
+        content: "Start Building...",
+      });
 
-    socket.emit(Actions.CREATE_ROOM, { roomId });
-  });
+      userSocketMap[socket.id] = {
+        userId,
+        userName,
+      };
 
-  // JOIN_CHECK validating 
-  socket.on(Actions.JOIN_CHECK, async({roomName, password})=>{
-    const room = await Room.findOne({ roomName });
-    if (!room) {
-      socket.emit(Actions.ERROR, "Room not found");
-      return;
-    }
+      socket.join(roomId);
+      console.log(`Joined in Room ${roomId} ${roomName} `)
 
-    if (room.isProtected) {
+      socket.emit(Actions.CREATE_ROOM, { roomId, userId });
+    },
+  );
+
+  // JOIN_CHECK validating
+  socket.on(
+    Actions.JOIN_CHECK,
+    async ({ userId, roomName, password, userName }) => {
+      const room = await Room.findOne({ roomName });
+      if (!room) {
+        socket.emit(Actions.ERROR, "Room not found");
+        return;
+      }
+
+      const roomId = room.roomId; 
+      const users = getAllConnectedUsers(roomId);
+
+     const userNameTaken = users.some(
+  (u) => u.userName === userName && u.userId !== userId
+);
+
+
+
+      if (userNameTaken) {
+        socket.emit(
+          Actions.ERROR,
+          "Username already taken in this room. Please choose another.",
+        );
+        return;
+      }
+
+       if (room.isProtected) {
       const ok = await bcrypt.compare(password || "", room.passwordHash);
       if (!ok) {
         socket.emit(Actions.ERROR, "Invalid password");
@@ -80,98 +114,116 @@ io.on("connection", (socket) => {
       }
     }
 
-    const roomId = room.roomId;
 
-    socket.emit(Actions.JOIN_CONFIRM, ({
-      roomId,
-    }));
-  })
+      socket.emit(Actions.JOIN_CONFIRM, {
+        roomId,
+      });
+    },
+  );
 
   /* ================= JOIN ROOM ================= */
-socket.on(Actions.JOIN, async ({ roomName, username }) => {
+  socket.on(Actions.JOIN, async ({ roomName, userName, userId }) => {
+    const room = await Room.findOne({ roomName });
 
-  const room = await Room.findOne({ roomName });
+    if (!room) {
+      socket.emit(Actions.ERROR, "Room not found");
+      return;
+    }
 
-  if (!room) {
-    socket.emit(Actions.ERROR, "Room not found");
-    return;
-  }
+    const roomId = room.roomId;
+    userSocketMap[socket.id] = {
+      userId,
+      userName,
+    };
+    socket.join(roomId);
 
-  const roomId = room.roomId;
+    const connectedUsers = getAllConnectedUsers(roomId);
 
-  userSocketMap[socket.id] = username;
-  socket.join(roomId);
+    //  send to JOINING USER
+    // this is for to add his/her own profile in connected users at client side
+    socket.emit(Actions.JOINED, {
+      connectedUsers,
+      userName,
+    });
 
-  const connectedUsers = getAllConnectedUsers(roomId);
+    //  send to OTHER USERS
+    socket.to(roomId).emit(Actions.JOINED, {
+      connectedUsers,
+      userName,
+      userId
+    });
 
-  //  send to JOINING USER
-  // this is for to add his/her own profile in connected users at client side
-  socket.emit(Actions.JOINED, {
-    connectedUsers,
-    username,
+    const codeDoc = await Code.findOne({ roomId });
+    if (codeDoc) {
+      socket.emit(Actions.SYNC_CODE, { code: codeDoc.content });
+    }
+
+    const messages = await Message.find({ roomId }).sort({ createdAt: 1 });
+
+    socket.emit(
+      Actions.CHAT_HISTORY,
+      messages.map((msg) => ({
+        userName: msg.userName,
+        text: msg.text,
+        time: msg.createdAt,
+      })),
+    );
   });
-
-  //  send to OTHER USERS
-  socket.to(roomId).emit(Actions.JOINED, {
-    connectedUsers,
-    username,
-  });
-
-  const codeDoc = await Code.findOne({ roomId });
-  if (codeDoc) {
-    socket.emit(Actions.SYNC_CODE, { code: codeDoc.content });
-  }
-
- const messages = await Message.find({ roomId }).sort({ createdAt: 1 });
-
-socket.emit(
-  Actions.CHAT_HISTORY,
-  messages.map(msg => ({
-    username: msg.username,
-    text: msg.text,
-    time: msg.createdAt, 
-  }))
-);
-
-});
-
 
   /* ================= CODE ================= */
   socket.on(Actions.CODE_CHANGE, async ({ roomId, code }) => {
     await Code.findOneAndUpdate(
       { roomId },
       { content: code },
-      { upsert: true }
+      { upsert: true },
     );
     socket.to(roomId).emit(Actions.CODE_CHANGE, { code });
   });
 
   /* ================= CHAT ================= */
   socket.on(Actions.CHAT_MESSAGE, async ({ roomId, text }) => {
-    const username = userSocketMap[socket.id];
-    if (!username) return;
 
-    const msg = await Message.create({ roomId, username, text });
+    const user = userSocketMap[socket.id];
+
+    const userName = user.userName;
+    
+    if (!userName) return;
+
+    const msg = await Message.create({ roomId, userName, text });
 
     io.to(roomId).emit(Actions.CHAT_MESSAGE, {
-      username,
+      userName,
       text,
       time: msg.createdAt,
     });
   });
+
+  socket.on(Actions.LEAVE, ({roomId, userName, userId})=>{
+  
+  if (userName) return;
+
+  socket.leave(roomId);
+
+  socket.to(roomId).emit(Actions.DISCONNECTED, {
+    socketId: socket.id,
+    userName, 
+    userId,
+  });
+
+  delete userSocketMap[socket.id];
+  })
 
   /* ================= DISCONNECT ================= */
   socket.on("disconnecting", () => {
     for (const roomId of socket.rooms) {
       socket.to(roomId).emit(Actions.DISCONNECTED, {
         socketId: socket.id,
-        username: userSocketMap[socket.id],
+        userName: userSocketMap[socket.id],
       });
     }
     delete userSocketMap[socket.id];
   });
 });
-
 
 server.listen(5000, () => {
   console.log("Server running on port 5000");

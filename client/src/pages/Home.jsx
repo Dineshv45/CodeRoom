@@ -9,11 +9,10 @@ function Home() {
   const navigate = useNavigate();
   const socketRef = useRef(null);
 
-  const [username, setUsername] = useState("");
+  const [userName, setUserName] = useState("");
   const [roomName, setRoomName] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({});
-  const [users, setUsers] = useState();
 
 
   const roomNameRef = useRef("");
@@ -21,13 +20,26 @@ const passwordRef = useRef("");
 const usernameRef = useRef("");
 
 
-  /* ---------- validation ---------- */
+/// userID generation
+
+const getOrCreateUserId = ()=>{
+  let userId = localStorage.getItem("userId");
+
+  if(!userId){
+    userId = crypto.randomUUID();
+    localStorage.setItem("userId", userId);
+  }
+
+  return userId;
+}
+
+//  /* ---------- validation ---------- */
   const validate = () => {
     const newErrors = {};
 
     if (!roomName.trim()) newErrors.roomName = "Room name is required";
 
-    if (!username.trim()) newErrors.username = "Username is required";
+    if (!userName.trim()) newErrors.userName = "Username is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -38,12 +50,12 @@ const createNewRoom = () => {
   if (!validate()) return;
 
   socketRef.current.emit(Actions.CREATE_ROOM, {
+    userId: getOrCreateUserId(),
     roomName,
     password,
-    username,
+    userName,
   });
 
-  toast.success("Created new room");
 };
 
 
@@ -51,10 +63,12 @@ const createNewRoom = () => {
   const joinRoom = () => {
     if (!validate()) return;
 
+
     socketRef.current.emit(Actions.JOIN_CHECK, {
+      userId: getOrCreateUserId(),
       roomName,
       password,
-      username,
+      userName,
     });
   };
 
@@ -67,19 +81,21 @@ const createNewRoom = () => {
 useEffect(() => {
   roomNameRef.current = roomName;
   passwordRef.current = password;
-  usernameRef.current = username;
-}, [roomName, password, username]);
+  usernameRef.current = userName;
+}, [roomName, password, userName]);
 
 useEffect(() => {
   const init = async () => {
     socketRef.current = await initSocket();
 
-    socketRef.current.on(Actions.CREATE_ROOM, ({ roomId }) => {
+    socketRef.current.on(Actions.CREATE_ROOM, ({ roomId, userId }) => {
+       toast.success("Room Created");
       navigate(`/editor/${roomId}`, {
         state: {
           roomName: roomNameRef.current,
           password: passwordRef.current,
-          username: usernameRef.current,
+          userName: usernameRef.current,
+          userId,
         },
       });
     });
@@ -89,7 +105,8 @@ useEffect(() => {
         state: {
           roomName: roomNameRef.current,
           password: passwordRef.current,
-          username: usernameRef.current,
+          userName: usernameRef.current,
+          userId:  localStorage.getItem("userId"),
         },
       });
     });
@@ -151,13 +168,13 @@ useEffect(() => {
             <input
               type="text"
               placeholder="USERNAME"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
               onKeyUp={handleInputEnter}
               className="w-full px-4 py-3 rounded-md bg-neutral-800 text-white border border-neutral-700 focus:ring-2 focus:ring-blue-600"
             />
-            {errors.username && (
-              <p className="text-sm text-red-400 mt-1">{errors.username}</p>
+            {errors.userName && (
+              <p className="text-sm text-red-400 mt-1">{errors.userName}</p>
             )}
           </div>
 

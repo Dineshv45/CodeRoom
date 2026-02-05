@@ -51,7 +51,8 @@ function EditorPage() {
 
     socketRef.current.emit(Actions.LEAVE, {
       roomId,
-      username: location.state?.username,
+      userName: location.state?.userName,
+      userId:location.state?.userId,
     });
 
     socketRef.current.disconnect();
@@ -79,8 +80,8 @@ function EditorPage() {
   };
 
   useEffect(() => {
+    
     if (socketRef.current) return;
-
     const init = async () => {
       socketRef.current = await initSocket();
 
@@ -89,15 +90,15 @@ function EditorPage() {
 
       socketRef.current.emit(Actions.JOIN, {
         roomName: location.state?.roomName,
-        username: location.state?.username,
+        userName: location.state?.userName,
         password: location.state?.password,
+        userId: location.state?.userId,
       });
 
 
-
-      socketRef.current.on(Actions.JOINED, ({ connectedUsers, username }) => {
-        if (username !== location.state.username) {
-          toast.success(`${username} joined the room`);
+      socketRef.current.on(Actions.JOINED, ({ connectedUsers, userName }) => {
+        if (userName !== location.state.userName) {
+          toast.success(`${userName} joined the room`);
         }
         setUsers(connectedUsers);
       });
@@ -124,8 +125,8 @@ function EditorPage() {
         setMessages((prev) => [...prev, msg]);
       });
 
-      socketRef.current.on(Actions.DISCONNECTED, ({ socketId, username }) => {
-        toast.success(`${username} left the room`);
+      socketRef.current.on(Actions.DISCONNECTED, ({ socketId, userName }) => {
+        toast.success(`${userName} left the room`);
         setUsers((prev) => prev.filter(u => u.socketId !== socketId));
       });
     };
@@ -205,7 +206,7 @@ function EditorPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {users.map((user) => (
-              <User key={user.socketId} username={user.username} />
+              <User key={user.socketId} userName={user.userName} />
             ))}
           </div>
         </div>
@@ -291,7 +292,7 @@ function EditorPage() {
               chatInput={chatInput}
               setChatInput={setChatInput}
               onSend={sendMessage}
-              myUsername={location.state?.username}
+              myUserName={location.state?.userName}
             />
           )}
         </div>

@@ -15,8 +15,15 @@ const RoomSchema = new mongoose.Schema(
       sparse: true, // allows null for now
     },
 
-    createdBy: {
-      type: String, // username for now
+      createdBy: {
+      userId: {
+        type: String,
+        required: true,
+      },
+      userName: {
+        type: String,
+        required: true,
+      },
     },
 
     isProtected: {

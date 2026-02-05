@@ -10,21 +10,21 @@ const COLORS = [
 ];
 
 
-function getAvatarColor(username) {
+function getAvatarColor(userName) {
   let hash = 0;
-  for (let i = 0; i < username.length; i++) {
-    hash = username.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < userName.length; i++) {
+    hash = userName.charCodeAt(i) + ((hash << 5) - hash);
   }
   return COLORS[Math.abs(hash) % COLORS.length];
 }
 
 
-function User({ username }) {
+function User({ userName }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <Avatar name={username} round={true} size="40" color= {getAvatarColor(username)}/>
+      <Avatar name={userName} round={true} size="40" color= {getAvatarColor(userName)}/>
       <span className="text-xs text-neutral-300 truncate">
-        {username}
+        {userName}
       </span>
     </div>
   );

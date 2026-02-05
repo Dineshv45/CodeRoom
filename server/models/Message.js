@@ -9,7 +9,7 @@ const MessageSchema = new mongoose.Schema(
         },
     
     
-        username: {
+        userName: {
             type:String,
             required:true
         },

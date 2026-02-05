@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-function Chat({ messages, chatInput, setChatInput, onSend, myUsername }) {
+function Chat({ messages, chatInput, setChatInput, onSend, myUserName }) {
 
   const bottomRef = useRef(null);
 
@@ -21,7 +21,7 @@ useEffect(()=>{
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-900">
           {messages.map((msg, idx) => {
-            const isMe = msg.username === myUsername;
+            const isMe = msg.userName === myUserName;
 
             return (
               <div
@@ -40,7 +40,7 @@ useEffect(()=>{
                   {/* Username (only for others) */}
                   {!isMe && (
                     <span className="text-xs text-blue-400 mb-1">
-                      {msg.username}
+                      {msg.userName}
                     </span>
                   )}
 
