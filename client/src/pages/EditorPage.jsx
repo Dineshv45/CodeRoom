@@ -1,300 +1,108 @@
-import { useState, useRef, useEffect } from "react";
-import codeEditorIcon from "../assets/code-editor-icon.png";
-import User from "../components/User";
-import Editor from "../components/Editor";
-import Chat from "../components/Chat";
-import { Actions } from "../../../server/Actions";
-import { initSocket } from "../socket";
-import { LogOut, Menu, X } from "lucide-react";
-import {
-  useLocation,
-  useNavigate,
-  Navigate,
-  useParams,
-} from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useParams, Navigate, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { initSocket } from "../socket";
+import { requireAuth } from "../utils/requireAuth.js";
 
 function EditorPage() {
-  const [activeView, setActiveView] = useState("code");
-  const [users, setUsers] = useState([]);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  const [messages, setMessages] = useState([]);
-  const [chatInput, setChatInput] = useState("");
-
-  const editorRef = useRef(null);
-  const codeRef = useRef("");
-  const socketRef = useRef(null);
-  const location = useLocation(null);
-  //location = { pathname: "/editor/roomId,state: { username: "rahul"}} from Home.jsx
-
-  const reactNavigator = useNavigate(null);
   const { roomId } = useParams();
+  const socketRef = useRef(null);
+  const navigate = useNavigate();
 
-  const handleErrors = (e) => {
-    toast.error("Connection lost");
-    leaveRoom(false);
-  };
+  const [users, setUsers] = useState([]);
 
-  const handleCopyRoomId = async () => {
-    try {
-      await navigator.clipboard.writeText(roomId);
-      toast.success("Room ID copied to clipboard");
-    } catch (err) {
-      toast.error("Failed to Room ID");
-      console.log("Copy failed :", err);
-    }
-  };
-
-  const leaveRoom = (showToast = false) => {
-    if (!socketRef.current) return;
-
-    socketRef.current.emit(Actions.LEAVE, {
-      roomId,
-      userName: location.state?.userName,
-      userId:location.state?.userId,
-    });
-
-    socketRef.current.disconnect();
-
-    if (showToast) {
-      toast.success("You Left the room");
-    }
-
-    reactNavigator("/");
-  };
-
-  const handleLeaveRoom = () => {
-    leaveRoom(true);
-  };
-
-  const sendMessage = () => {
-    if (!chatInput.trim()) return;
-
-    socketRef.current.emit(Actions.CHAT_MESSAGE, {
-      roomId,
-      text: chatInput,
-    });
-
-    setChatInput("");
-  };
+  
+  const [messages, setMessages] = useState([]);
 
   useEffect(() => {
-    
-    if (socketRef.current) return;
-    const init = async () => {
-      socketRef.current = await initSocket();
+  if (!requireAuth(navigate)) return;
+}, []);
 
-      socketRef.current.on("connect_error", handleErrors);
-      socketRef.current.on("connect_failed", handleErrors);
 
-      socketRef.current.emit(Actions.JOIN, {
-        roomName: location.state?.roomName,
-        userName: location.state?.userName,
-        password: location.state?.password,
-        userId: location.state?.userId,
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      toast.error("Please login first");
+      navigate("/");
+      return;
+    }
+
+    if (!roomId) return;
+
+    const socket = initSocket();
+    socketRef.current = socket;
+
+    socket.emit("ROOM_JOIN", { roomId });
+
+    socket.on("USER_ONLINE", (user) => {
+      setUsers((prev) => {
+        if (prev.some((u) => u.userId === user.userId)) return prev;
+        return [...prev, user];
       });
+    });
 
+    socket.on("USER_OFFLINE", ({ userId }) => {
+      setUsers((prev) => prev.filter((u) => u.userId !== userId));
+    });
 
-      socketRef.current.on(Actions.JOINED, ({ connectedUsers, userName }) => {
-        if (userName !== location.state.userName) {
-          toast.success(`${userName} joined the room`);
-        }
-        setUsers(connectedUsers);
-      });
+    socket.on("CHAT_MESSAGE", (msg) => {
+      setMessages((prev) => [...prev, msg]);
+    });
 
-      socketRef.current.on(Actions.SYNC_CODE, ({ code }) => {
-        if (code != null) {
-          codeRef.current = code;
-          setTimeout(() => {
-            editorRef.current?.updateCode(code);
-          }, 100);
-        }
-      });
-
-      socketRef.current.on(Actions.CODE_CHANGE, ({ code }) => {
-        if (code != null) {
-          codeRef.current = code;
-          editorRef.current?.updateCode(code);
-        }
-      });
-
-      socketRef.current.on(Actions.CHAT_HISTORY, setMessages);
-
-      socketRef.current.on(Actions.CHAT_MESSAGE, (msg) => {
-        setMessages((prev) => [...prev, msg]);
-      });
-
-      socketRef.current.on(Actions.DISCONNECTED, ({ socketId, userName }) => {
-        toast.success(`${userName} left the room`);
-        setUsers((prev) => prev.filter(u => u.socketId !== socketId));
-      });
-    };
-
-    init();
+    socket.on("connect_error", (err) => {
+      if (err.message === "TOKEN_EXPIRED") {
+        toast.error("Session expired");
+        navigate("/");
+      } else {
+        toast.error("Socket connection failed");
+      }
+    });
 
     return () => {
-      if (!socketRef.current) return;
-
-      socketRef.current.off(Actions.JOIN_SUCCESS);
-      socketRef.current.off(Actions.JOINED);
-      socketRef.current.off(Actions.SYNC_CODE);
-      socketRef.current.off(Actions.CODE_CHANGE);
-      socketRef.current.off(Actions.CHAT_MESSAGE);
-      socketRef.current.off(Actions.DISCONNECTED);
-
-      socketRef.current.disconnect();
-      socketRef.current = null;
+      socket.emit("ROOM_LEAVE", { roomId });
+      socket.disconnect();
     };
-  }, []);
+  }, [roomId, navigate]);
 
-
-
-
-  if (!location.state) {
-    return <Navigate to="/" />;
-  }
+  if (!roomId) return <Navigate to="/" />;
 
   return (
-    <div className="w-screen h-screen flex bg-neutral-950 text-white overflow-hidden">
-      {/* Overlay (mobile) */}
-      {isSidebarOpen && (
-        <div
-          onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-        />
-      )}
-
+    <div className="min-h-screen bg-neutral-950 text-white flex">
       {/* Sidebar */}
-      <aside
-        className={`
-      fixed md:static z-50
-      h-full w-64
-      bg-neutral-900 border-r border-neutral-800
-      flex flex-col
-      transform transition-transform duration-300
-      ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-      md:translate-x-0
-    `}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-neutral-800">
-          <div className="flex items-center gap-3">
-            <img
-              className="w-8 h-8"
-              src={codeEditorIcon}
-              alt="Code Editor Icon"
-            />
-            <h1 className="text-lg font-semibold">
-              Code<span className="text-blue-500">Room</span>
-            </h1>
-          </div>
+      <aside className="w-64 bg-neutral-900 border-r border-neutral-800 p-4">
+        <h2 className="text-sm uppercase text-neutral-400 mb-3">
+          Online Users
+        </h2>
 
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            className="md:hidden p-1 rounded hover:bg-neutral-800"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Connected Users */}
-        <div className="flex-1 px-4 py-4 overflow-y-auto">
-          <h3 className="text-xs uppercase tracking-wider text-neutral-400 mb-3">
-            Connected
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {users.map((user) => (
-              <User key={user.socketId} userName={user.userName} />
-            ))}
-          </div>
-        </div>
-
-        {/* Bottom Actions (Pinned) */}
-        <div className="mt-auto px-4 py-3 border-t border-neutral-800 bg-neutral-900">
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={handleCopyRoomId}
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-neutral-800 hover:bg-neutral-700 transition text-sm"
+        <ul className="space-y-2">
+          {users.map((u) => (
+            <li
+              key={u.userId}
+              className="px-3 py-2 rounded-md bg-neutral-800 text-sm"
             >
-              Copy Room ID
-            </button>
-
-            <button
-              onClick={handleLeaveRoom}
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-red-600/10 text-red-400 hover:bg-red-600/20 transition text-sm"
-            >
-              Leave
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
+              {u.username}
+            </li>
+          ))}
+        </ul>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 h-full flex flex-col overflow-hidden">
-        {/* navbar */}
-        <div className="flex items-center justify-between px-4 py-2 border-2 border-neutral-800 bg-neutral-900">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActiveView("code")}
-              className={`px-4 py-1.5 rounded-md text-sm transition ${activeView === "code"
-                  ? "bg-blue-600 text-white"
-                  : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-                }
-                    `}
-            >
-              Code
-            </button>
+      {/* Main content */}
+      <main className="flex-1 p-6 overflow-y-auto">
+        <h2 className="text-lg font-semibold mb-4">
+          Room <span className="text-blue-500">#{roomId}</span>
+        </h2>
 
-            <button
-              onClick={() => setActiveView("chat")}
-              className={`px-4 py-1.5 rounded-md text-sm transition ${activeView === "chat"
-                  ? "bg-blue-600 text-white"
-                  : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-                }
-                    `}
-            >
-              Chat
-            </button>
-          </div>
-        </div>
-        {/* mobile top bar */}
-        <div className="md:hidden flex items-center gap-3 px-4 border-b border-neutral-950">
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-2 rounded-md bg-neutral-800 hover:bg-neutral-700"
-          >
-            <Menu size={20} />
-          </button>
+        <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+          <h3 className="text-sm text-neutral-400 mb-3">Chat</h3>
 
-          <h2 className="text-sm font-medium text-neutral-300">Editor</h2>
-        </div>
-
-        <div className="flex-1 overflow-hidden">
-          {activeView === "code" ? (
-            <Editor
-              ref={editorRef}
-              initialCode={codeRef.current || ""}
-              onCodeChange={(code) => {
-                codeRef.current = code;
-
-                socketRef.current?.emit(Actions.CODE_CHANGE, {
-                  roomId,
-                  code,
-                });
-              }}
-            />
-          ) : (
-            <Chat
-              messages={messages}
-              chatInput={chatInput}
-              setChatInput={setChatInput}
-              onSend={sendMessage}
-              myUserName={location.state?.userName}
-            />
-          )}
+          <ul className="space-y-2 max-h-[70vh] overflow-y-auto">
+            {messages.map((m, i) => (
+              <li key={i} className="text-sm">
+                <span className="text-blue-400 font-medium">{m.username}</span>
+                <span className="text-neutral-300">: {m.text}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </main>
     </div>

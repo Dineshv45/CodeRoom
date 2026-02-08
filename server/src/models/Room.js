@@ -5,7 +5,7 @@ const RoomSchema = new mongoose.Schema(
     roomId: {
       type: String,
       required: true,
-      unique: true, // this is what you already use in URL
+      unique: true, 
       index: true,
     },
 
@@ -14,25 +14,20 @@ const RoomSchema = new mongoose.Schema(
       unique: true,
       sparse: true, // allows null for now
     },
-
-      createdBy: {
-      userId: {
-        type: String,
-        required: true,
-      },
-      userName: {
-        type: String,
-        required: true,
-      },
+    owner:{
+      type:mongoose.Schema.Types.ObjectId,
+      ref:"User",
+      required: true,
     },
 
-    isProtected: {
+    members:{
+      type:mongoose.Schema.Types.ObjectId,
+      ref:"User",
+    },
+
+    isPrivate: {
       type: Boolean,
       default: false,
-    },
-
-    passwordHash: {
-      type: String, // later (Phase 2+)
     },
   },
   { timestamps: true }

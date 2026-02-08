@@ -6,6 +6,7 @@ const CodeSchema = new mongoose.Schema(
             type:String,
             required:true,
             unique:true,
+            index:true,
         },
         language:{
             type:String,
@@ -19,4 +20,4 @@ const CodeSchema = new mongoose.Schema(
     {timestamps:true}
 );
 
-export default mongoose.model("code", CodeSchema)
+export default mongoose.model("Code", CodeSchema)
