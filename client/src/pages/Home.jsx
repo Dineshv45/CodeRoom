@@ -1,114 +1,216 @@
-import { useEffect, useRef, useState } from "react";
-import codeEditorIcon from "../assets/code-editor-icon.png";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, Outlet } from "react-router-dom";
 import toast from "react-hot-toast";
-import {requireAuth} from "../utils/requireAuth.js";
+import { requireAuth } from "../utils/requireAuth";
+import RoomsSidebar from "../components/RoomsSidebar";
+import UsersPanel from "../components/UsersPanel";
+import EmptyState from "../components/EmptyState";
+import { Users, User, Settings, X, Home as HomeIcon } from "lucide-react";
 
 function Home() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [rooms, setRooms] = useState([]);
-  const [roomName, setRoomName] = useState("");
+  const [activePanel, setActivePanel] = useState("rooms");
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
 
   const token = localStorage.getItem("accessToken");
+  const isEditorOpen = location.pathname.startsWith("/editor/");
 
-  useEffect(() => {
-    if (!requireAuth(navigate)) return;
+  const joinRoom = async (roomId) => {
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/join`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
 
-  fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/my`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
-    .then(res => {
-      if (!res.ok) throw new Error();
-      return res.json();
-    })
-    .then(data => setRooms(Array.isArray(data) ? data : []))
-    .catch(() => toast.error("Failed to load rooms"));
+      if (!res.ok) {
+        toast.error("Room not found or unauthorized");
+        return;
+      }
 
-  }, [token]);
+      const room = await res.json();
 
-  const createRoom = async () => {
-    if (!roomName.trim()) {
-      toast.error("Room name required");
-      return;
+      await fetchRooms(); // refresh sidebar
+
+      navigate(`/editor/${room.roomId}`, {
+        state: { roomName: room.roomName },
+      });
+    } catch {
+      toast.error("Failed to join room");
     }
+  };
 
-    const res = await fetch(
-      `${import.meta.env.VITE_BACKEND_URL}/api/rooms`,
-      {
+  const createRoom = async (roomName) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ roomName }),
-      }
-    );
+      });
 
-    if(!res.ok){
-      if(res.status === 401){
-        toast.error("Session Expired, Please Login again");
-        navigate('/');
+      if (!res.ok) {
+        toast.error("Failed to create room");
         return;
       }
-      toast.error("Failed to create room");
-      return;
-    };
 
-    const room = await res.json();
-    navigate(`/editor/${room.roomId}`);
+      const room = await res.json();
+      await fetchRooms();
+
+      navigate(`/editor/${room.roomId}`);
+    } catch {
+      toast.error("Error creating room");
+    }
   };
 
+  const fetchRooms = async () => {
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/rooms/my`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      if (!res.ok) throw new Error();
+
+      const data = await res.json();
+      setRooms(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error("Please login again");
+      localStorage.clear();
+      navigate("/login");
+    }
+  };
+
+  useEffect(() => {
+    if (!requireAuth(navigate)) return;
+    fetchRooms();
+  }, []);
+
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex justify-center items-center px-4">
-      <div className="w-full max-w-lg">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-8 justify-center">
-          <img src={codeEditorIcon} className="w-10 h-10" />
-          <h1 className="text-2xl font-semibold">
-            Code<span className="text-blue-500">Room</span>
-          </h1>
-        </div>
+    <div className="h-screen flex bg-neutral-950 text-white relative">
+      {/* ===== Sidebar ===== */}
+      <div
+        className={`
+    fixed top-0 left-0 h-full w-72 bg-neutral-900 z-50
+    transform transition-transform duration-300
+    ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+    md:translate-x-0 md:relative md:z-auto
+  `}
+      >
+        <div className="flex h-full">
+          {/* Icon Bar */}
+          <div className="w-14 bg-neutral-900 border-r border-neutral-800 flex flex-col items-center py-4">
+            <div className="flex flex-col items-center gap-6 flex-1">
+              <div className="flex flex-col items-center gap-6 flex-1">
+                <button
+                  onClick={() => setActivePanel("rooms")}
+                  className={`p-2 rounded ${
+                    activePanel === "rooms"
+                      ? "bg-neutral-800"
+                      : "hover:bg-neutral-800"
+                  }`}
+                >
+                  <HomeIcon size={20} />
+                </button>
 
-        {/* Rooms list */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 mb-6">
-          <h2 className="text-sm text-neutral-400 mb-3">Your Rooms</h2>
+                <button
+                  onClick={() => setActivePanel("users")}
+                  className={`p-2 rounded ${
+                    activePanel === "users"
+                      ? "bg-neutral-800"
+                      : "hover:bg-neutral-800"
+                  }`}
+                >
+                  <Users size={20} />
+                </button>
+              </div>
 
-          {rooms.length === 0 && (
-            <p className="text-neutral-500 text-sm">No rooms yet</p>
-          )}
-
-          <ul className="space-y-2">
-            {rooms.map((room) => (
-              <li
-                key={room.roomId}
-                onClick={() => navigate(`/editor/${room.roomId}`)}
-                className="px-3 py-2 rounded-md bg-neutral-800 hover:bg-neutral-700 cursor-pointer transition"
+              <button
+                onClick={() => setActivePanel("profile")}
+                className="p-2 rounded hover:bg-neutral-800"
               >
-                {room.roomName}
-              </li>
-            ))}
-          </ul>
-        </div>
+                <User size={20} />
+              </button>
+            </div>
 
-        {/* Create room */}
-        <div className="flex gap-2">
-          <input
-            className="flex-1 px-3 py-2 rounded-md bg-neutral-800 border border-neutral-700 text-white focus:ring-2 focus:ring-blue-600"
-            placeholder="New room name"
-            value={roomName}
-            onChange={(e) => setRoomName(e.target.value)}
-          />
+            <div className="mb-4">
+              <button className="p-2 rounded hover:bg-neutral-800">
+                <Settings size={20} />
+              </button>
+            </div>
+          </div>
 
-          <button
-            onClick={createRoom}
-            className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 transition"
-          >
-            Create
-          </button>
+          {/* Rooms Panel */}
+          <div className="flex-1 flex flex-col border-r border-neutral-800">
+            {/* Mobile Header */}
+            <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+              <h2 className="text-sm font-medium">Rooms</h2>
+              <button onClick={() => setSidebarOpen(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {activePanel === "rooms" && (
+                <RoomsSidebar
+                  rooms={rooms}
+                  onSelectRoom={(room) => {
+                    navigate(`/editor/${room.roomId}`, {
+                      state: { roomName: room.roomName },
+                    });
+                    setSidebarOpen(false);
+                  }}
+                />
+              )}
+
+              {activePanel === "users" && (
+                <UsersPanel onlineUsers={onlineUsers} allMembers={allMembers} />
+              )}
+            </div>
+          </div>
         </div>
+      </div>
+
+      {/* ===== Overlay (Mobile Only) ===== */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ===== Main Content ===== */}
+      <div className="flex-1 flex flex-col">
+        {/* Mobile Header when NOT in editor */}
+        {!isEditorOpen && (
+          <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-neutral-800 bg-neutral-900">
+            <button onClick={() => setSidebarOpen(true)} className="text-white">
+              ☰
+            </button>
+
+            <h2 className="text-sm font-medium">CodeRoom</h2>
+          </div>
+        )}
+
+        {isEditorOpen ? (
+          <Outlet context={{ setOnlineUsers, setAllMembers, setSidebarOpen }} />
+        ) : (
+          <EmptyState onCreate={createRoom} onJoin={joinRoom} />
+        )}
       </div>
     </div>
   );

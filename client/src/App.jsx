@@ -2,7 +2,7 @@ import { useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home.jsx";
 import Login from "./pages/Login.jsx";
-import Register from "./pages/Register.jsx"
+import Register from "./pages/Register.jsx";
 import EditorPage from "./pages/EditorPage.jsx";
 import { Toaster } from "react-hot-toast";
 
@@ -25,10 +25,12 @@ function App() {
       </div>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/editor/:roomId" element={<EditorPage />} />
+          <Route path="/" element={<Home />}>
+            {/* This renders INSIDE <Outlet /> */}
+            <Route path="editor/:roomId" element={<EditorPage />} />
+          </Route>
         </Routes>
       </BrowserRouter>
     </>

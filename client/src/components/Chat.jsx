@@ -1,8 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
-function Chat({ messages, chatInput, setChatInput, onSend, myUserName }) {
+function Chat({ socketRef, roomId, messages, setMessages, myUserName }) {
 
+  const [chatInput, setChatInput] = useState("");
+  
   const bottomRef = useRef(null);
+
 
   function formatTime(timestamp) {
   return new Date(timestamp).toLocaleTimeString([], {
@@ -12,8 +15,20 @@ function Chat({ messages, chatInput, setChatInput, onSend, myUserName }) {
 }
 
 useEffect(()=>{
-  bottomRef.current?.scrollIntoView({behaviour: "smooth"});
+bottomRef.current?.scrollIntoView({ behavior: "smooth" });
 }, [messages]);
+
+const onSendMessage = () => {
+  if (!chatInput.trim()) return;
+
+  socketRef.current?.emit("CHAT_MESSAGE", {
+    roomId,
+    text: chatInput,
+  });
+
+  setChatInput("");
+};
+
 
   return (
     <>
@@ -70,11 +85,11 @@ useEffect(()=>{
             onChange={(e) => setChatInput(e.target.value)}
             placeholder="Type a message..."
             className="flex-1 px-3 py-2 bg-neutral-800 text-sm outline-none rounded"
-            onKeyDown={(e) => e.key === "Enter" && onSend()}
+            onKeyDown={(e) => e.key === "Enter" && onSendMessage()}
           />
 
           <button
-            onClick={onSend}
+            onClick={onSendMessage}
             className="px-4 py-2 bg-blue-600 text-sm rounded hover:bg-blue-700"
           >
             Send

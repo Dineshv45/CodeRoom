@@ -1,110 +1,211 @@
-import { useEffect, useRef, useState } from "react";
-import { useParams, Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, useMemo } from "react";
+import {
+  useParams,
+  Navigate,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import toast from "react-hot-toast";
+import { jwtDecode } from "jwt-decode";
 import { initSocket } from "../socket";
-import { requireAuth } from "../utils/requireAuth.js";
+import { requireAuth } from "../utils/requireAuth";
+import { Plus } from "lucide-react";
+
+import Editor from "../components/Editor";
+import Chat from "../components/Chat";
+import { useOutletContext } from "react-router-dom";
 
 function EditorPage() {
   const { roomId } = useParams();
-  const socketRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [users, setUsers] = useState([]);
+  const socketRef = useRef(null);
+  const editorRef = useRef(null);
 
-  
+  const { setOnlineUsers, setAllMembers, setSidebarOpen } = useOutletContext();
+  const roomName = location.state?.roomName || "Room";
+
   const [messages, setMessages] = useState([]);
 
+  const [view, setView] = useState("code");
+  const [unreadChat, setUnreadChat] = useState(false);
+  const [unreadCode, setUnreadCode] = useState(false);
+
+  const viewRef = useRef(view);
+
+  const myUsername = useMemo(() => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return null;
+    return jwtDecode(token)?.username;
+  }, []);
+
   useEffect(() => {
-  if (!requireAuth(navigate)) return;
-}, []);
+    viewRef.current = view;
+  }, [view]);
 
+  /* ---------- auth guard ---------- */
+  useEffect(() => {
+    if (!requireAuth(navigate)) return;
+  }, []);
 
+  /* ---------- socket lifecycle ---------- */
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) {
       toast.error("Please login first");
-      navigate("/");
+      localStorage.clear();
+      navigate("/login");
       return;
     }
 
     if (!roomId) return;
 
-    const socket = initSocket();
+    const socket = initSocket({ token }); // (JWT later for socket auth)
     socketRef.current = socket;
 
     socket.emit("ROOM_JOIN", { roomId });
 
-    socket.on("USER_ONLINE", (user) => {
-      setUsers((prev) => {
-        if (prev.some((u) => u.userId === user.userId)) return prev;
-        return [...prev, user];
-      });
+    socket.emit("CODE_SYNC", { roomId });
+
+    socket.emit("CHAT_SYNC", { roomId });
+
+    socket.on("CHAT_HISTORY", (history) => {
+      setMessages(history);
     });
 
-    socket.on("USER_OFFLINE", ({ userId }) => {
-      setUsers((prev) => prev.filter((u) => u.userId !== userId));
+    socket.on("ROOM_USERS", (users) => {
+      setOnlineUsers(users);
+    });
+
+    socket.on("ROOM_MEMBERS", (members) => {
+      setAllMembers(members);
+    });
+
+    socket.on("ROOM_ERROR", (msg) => {
+      toast.error(msg);
+    });
+
+    socket.on("CODE_CHANGE", ({ code }) => {
+      editorRef.current?.updateCode(code);
+
+      if (viewRef.current !== "code") {
+        setUnreadCode(true);
+      }
     });
 
     socket.on("CHAT_MESSAGE", (msg) => {
       setMessages((prev) => [...prev, msg]);
+
+      if (viewRef.current !== "chat") {
+        setUnreadChat(true);
+      }
     });
 
     socket.on("connect_error", (err) => {
-      if (err.message === "TOKEN_EXPIRED") {
-        toast.error("Session expired");
-        navigate("/");
-      } else {
-        toast.error("Socket connection failed");
-      }
+      toast.error(`Session Expired ${err}`);
+      localStorage.clear();
+      navigate("/login");
     });
 
     return () => {
       socket.emit("ROOM_LEAVE", { roomId });
       socket.disconnect();
     };
-  }, [roomId, navigate]);
+  }, [roomId]);
 
   if (!roomId) return <Navigate to="/" />;
 
+  const handleCodeChange = (code) => {
+    socketRef.current?.emit("CODE_CHANGE", {
+      roomId,
+      code,
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-neutral-900 border-r border-neutral-800 p-4">
-        <h2 className="text-sm uppercase text-neutral-400 mb-3">
-          Online Users
-        </h2>
+    <div className="flex-1 flex flex-col">
+      {/* ===== Top bar ===== */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-800 bg-neutral-900">
+        {/* Left side */}
+        <div className="flex items-center gap-4">
+          <button
+            className="md:hidden z-40 relative"
+            onClick={() => setSidebarOpen(true)}
+          >
+            ☰
+          </button>
 
-        <ul className="space-y-2">
-          {users.map((u) => (
-            <li
-              key={u.userId}
-              className="px-3 py-2 rounded-md bg-neutral-800 text-sm"
-            >
-              {u.username}
-            </li>
-          ))}
-        </ul>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 p-6 overflow-y-auto">
-        <h2 className="text-lg font-semibold mb-4">
-          Room <span className="text-blue-500">#{roomId}</span>
-        </h2>
-
-        <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
-          <h3 className="text-sm text-neutral-400 mb-3">Chat</h3>
-
-          <ul className="space-y-2 max-h-[70vh] overflow-y-auto">
-            {messages.map((m, i) => (
-              <li key={i} className="text-sm">
-                <span className="text-blue-400 font-medium">{m.username}</span>
-                <span className="text-neutral-300">: {m.text}</span>
-              </li>
-            ))}
-          </ul>
+          <h2 className="text-sm font-medium">{roomName}</h2>
         </div>
-      </main>
+
+        {/* Center Toggle (Desktop + Mobile) */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setView("code");
+              setUnreadCode(false);
+            }}
+            className={`relative px-3 py-1 text-sm rounded ${
+              view === "code"
+                ? "bg-blue-600"
+                : "bg-neutral-800 hover:bg-neutral-700"
+            }`}
+          >
+            Code
+            {unreadCode && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              setView("chat");
+              setUnreadChat(false);
+            }}
+            className={`relative px-3 py-1 text-sm rounded ${
+              view === "chat"
+                ? "bg-blue-600"
+                : "bg-neutral-800 hover:bg-neutral-700"
+            }`}
+          >
+            Chat
+            {unreadChat && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            )}
+          </button>
+        </div>
+
+        {/* Right side */}
+        <button
+          onClick={() => navigate("/")}
+          className="flex items-center gap-1 px-2 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded"
+        >
+          <Plus size={14} />
+          New
+        </button>
+      </div>
+
+      {/* ===== Main area ===== */}
+      <div className="flex-1 flex overflow-hidden">
+        <main className="flex-1 h-full overflow-hidden relative">
+          {/* Editor */}
+          <div className={view === "code" ? "h-full w-full" : "hidden"}>
+            <Editor ref={editorRef} onCodeChange={handleCodeChange} />
+          </div>
+
+          {/* Chat */}
+          <div className={view === "chat" ? "h-full" : "hidden"}>
+            <Chat
+              socketRef={socketRef}
+              roomId={roomId}
+              messages={messages}
+              setMessages={setMessages}
+              myUserName={myUsername}
+            />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

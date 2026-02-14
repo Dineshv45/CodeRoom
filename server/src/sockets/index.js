@@ -6,7 +6,7 @@ import chatSocket from "./chat.js";
 export default function initSockets(io){
     socketAuth(io);
 
-    io.on("Connection", (socket) =>{
+    io.on("connection", (socket) =>{
         roomSocket(io, socket);
         codeSocket(io, socket);
         chatSocket(io, socket);

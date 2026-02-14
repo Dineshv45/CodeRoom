@@ -5,25 +5,29 @@ const RoomSchema = new mongoose.Schema(
     roomId: {
       type: String,
       required: true,
-      unique: true, 
+      unique: true,
       index: true,
     },
 
     roomName: {
       type: String,
+      required: true,
       unique: true,
-      sparse: true, // allows null for now
+      trim: true,
     },
-    owner:{
-      type:mongoose.Schema.Types.ObjectId,
-      ref:"User",
+
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
       required: true,
     },
 
-    members:{
-      type:mongoose.Schema.Types.ObjectId,
-      ref:"User",
-    },
+    members: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
 
     isPrivate: {
       type: Boolean,
