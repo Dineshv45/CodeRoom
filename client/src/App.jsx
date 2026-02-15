@@ -7,7 +7,6 @@ import EditorPage from "./pages/EditorPage.jsx";
 import { Toaster } from "react-hot-toast";
 
 function App() {
-  const [count, setCount] = useState(0);
 
   return (
     <>

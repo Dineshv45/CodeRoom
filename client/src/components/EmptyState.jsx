@@ -51,7 +51,10 @@ function EmptyState({ onCreate, onJoin }) {
   return (
     <div className="flex-1 flex items-center justify-center bg-neutral-950">
       <div className="text-center max-w-sm px-6">
-        <h2 className="text-lg font-medium mb-2">Welcome to CodeRoom</h2>
+        <h2 className="text-lg font-medium mb-2">
+          Welcome to <span className="font-medium ">Code</span>
+          <span className="font-medium text-blue-600 ">Room</span>
+        </h2>
         <p className="text-sm text-neutral-400 mb-6">
           Create a room or join using an invite link
         </p>

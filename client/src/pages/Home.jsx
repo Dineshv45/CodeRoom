@@ -16,7 +16,6 @@ function Home() {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [allMembers, setAllMembers] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showJoinModal, setShowJoinModal] = useState(false);
 
   const token = localStorage.getItem("accessToken");
   const isEditorOpen = location.pathname.startsWith("/editor/");
@@ -101,7 +100,7 @@ function Home() {
   }, []);
 
   return (
-    <div className="h-screen flex bg-neutral-950 text-white relative">
+<div className="h-screen flex bg-neutral-950 text-white relative overflow-hidden">
       {/* ===== Sidebar ===== */}
       <div
         className={`
@@ -202,7 +201,8 @@ function Home() {
               ☰
             </button>
 
-            <h2 className="text-sm font-medium">CodeRoom</h2>
+         <h2> <span className="text-sm font-medium ">Code</span>
+           <span className="text-sm font-medium text-blue-600 ">Room</span></h2>
           </div>
         )}
 

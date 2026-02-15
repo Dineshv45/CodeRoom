@@ -52,7 +52,6 @@ export const login = async (req, res) => {
     return res.status(400).json({ message: "Missing credentials" });
   }
 
-  // identifier = identifier.toLowerCase();
 
   const user = await User.findOne({
     $or: [{ email: identifier }, { username: identifier }],

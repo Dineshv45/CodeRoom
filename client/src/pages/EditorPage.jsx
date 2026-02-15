@@ -27,10 +27,13 @@ function EditorPage() {
   const roomName = location.state?.roomName || "Room";
 
   const [messages, setMessages] = useState([]);
-
   const [view, setView] = useState("code");
   const [unreadChat, setUnreadChat] = useState(false);
   const [unreadCode, setUnreadCode] = useState(false);
+  const [language, setLanguage] = useState("javascript");
+  const [output, setOutput] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
 
   const viewRef = useRef(view);
 
@@ -123,8 +126,44 @@ function EditorPage() {
     });
   };
 
+  const handleRun = async () => {
+    try {
+      setIsRunning(true);
+      setIsTerminalOpen(true);
+      setOutput("Running...");
+
+      const res = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/compile`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+          },
+          body: JSON.stringify({
+            language,
+            code: editorRef.current.getCode(),
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setOutput("Compilation failed");
+        return;
+      }
+
+      setOutput(data.output || "No Output");
+    } catch (err) {
+      setOutput("Error running code");
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* ===== Top bar ===== */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-800 bg-neutral-900">
         {/* Left side */}
@@ -186,16 +225,83 @@ function EditorPage() {
         </button>
       </div>
 
-      {/* ===== Main area ===== */}
-      <div className="flex-1 flex overflow-hidden">
-        <main className="flex-1 h-full overflow-hidden relative">
-          {/* Editor */}
-          <div className={view === "code" ? "h-full w-full" : "hidden"}>
-            <Editor ref={editorRef} onCodeChange={handleCodeChange} />
+      {/* ===== Compile Navbar ===== */}
+      {view === "code" && (
+        <div className="flex items-center justify-between px-4 py-2 bg-neutral-850 border-b border-neutral-800">
+          {/* ===== IDE Controls Bar ===== */}
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="bg-neutral-900 text-sm px-2 py-1 rounded"
+            >
+              <option value="javascript">JavaScript</option>
+              <option value="java">Java</option>
+              <option value="python">Python</option>
+              <option value="cpp">C++</option>
+            </select>
+
+            <button
+              onClick={handleRun}
+              disabled={isRunning}
+              className="px-3 py-1 bg-blue-600 text-sm rounded hover:bg-blue-700"
+            >
+              {isRunning ? "Running..." : "Run"}
+            </button>
+
+            <button
+              onClick={() => setIsTerminalOpen((prev) => !prev)}
+              className="px-3 py-1 bg-neutral-700 text-sm rounded hover:bg-neutral-600"
+            >
+              {isTerminalOpen ? "Hide Terminal" : "Open Terminal"}
+            </button>
           </div>
 
-          {/* Chat */}
-          <div className={view === "chat" ? "h-full" : "hidden"}>
+          {/* Right: Placeholder Fullscreen Button */}
+          <button className="hidden sm:inline-block text-sm px-3 py-1 bg-neutral-800 rounded hover:bg-neutral-700 w-full sm:w-auto">
+            Fullscreen
+          </button>
+        </div>
+      )}
+
+      {/* ===== Main area ===== */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* CODE VIEW */}
+        {view === "code" && (
+          <>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <Editor ref={editorRef} onCodeChange={handleCodeChange} />
+            </div>
+
+            {/* Terminal (only in code view) */}
+            <div
+              className={`
+          transition-all duration-300 ease-in-out
+          ${isTerminalOpen ? "h-56 opacity-100" : "h-0 opacity-0"}
+          flex flex-col bg-black border-t border-neutral-800
+          overflow-hidden
+        `}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-2 bg-neutral-900 border-b border-neutral-800">
+                <span>Terminal</span>
+                <button
+                  onClick={() => setIsTerminalOpen(false)}
+                  className="text-red-400 hover:text-red-500"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 text-green-400 font-mono text-sm whitespace-pre-wrap">
+                {output}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* CHAT VIEW */}
+        {view === "chat" && (
+          <div className="flex-1 min-h-0 overflow-hidden">
             <Chat
               socketRef={socketRef}
               roomId={roomId}
@@ -204,7 +310,7 @@ function EditorPage() {
               myUserName={myUsername}
             />
           </div>
-        </main>
+        )}
       </div>
     </div>
   );

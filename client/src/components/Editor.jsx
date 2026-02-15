@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  forwardRef,
-  useImperativeHandle,
-} from "react";
+import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { defaultKeymap } from "@codemirror/commands";
@@ -36,6 +31,10 @@ const Editor = forwardRef(({ onCodeChange, initialCode = "" }, ref) => {
 
       isRemoteChange.current = false;
     },
+
+    getCode() {
+      return viewRef.current?.state.doc.toString();
+    },
   }));
 
   /* ===== Initialize CodeMirror ===== */
@@ -48,24 +47,23 @@ const Editor = forwardRef(({ onCodeChange, initialCode = "" }, ref) => {
         onCodeChange?.(code);
       }
     });
-const state = EditorState.create({
-  doc: initialCode,
-  extensions: [
-    lineNumbers(),
-    keymap.of(defaultKeymap),
-    javascript(),
-    oneDark,
-    EditorView.lineWrapping,
-    updateListener,
+    const state = EditorState.create({
+      doc: initialCode,
+      extensions: [
+        lineNumbers(),
+        keymap.of(defaultKeymap),
+        javascript(),
+        closeBrackets(), 
+        oneDark,
+        EditorView.lineWrapping,
+        updateListener,
 
-    // 👇 THIS IS THE FIX
-    EditorView.theme({
-      "&": { height: "100%" },         // Makes .cm-editor full height
-      ".cm-scroller": { overflow: "auto" },
-    }),
-  ],
-});
-
+        EditorView.theme({
+          "&": { height: "100%" }, // Makes .cm-editor full height
+          ".cm-scroller": { overflow: "auto" },
+        }),
+      ],
+    });
 
     const view = new EditorView({
       state,
@@ -80,7 +78,9 @@ const state = EditorState.create({
     };
   }, []);
 
-  return <div ref={editorContainerRef} className="w-full h-full" />;
+  return (
+    <div ref={editorContainerRef} className="w-full h-full overflow-hidden" />
+  );
 });
 
 export default Editor;
