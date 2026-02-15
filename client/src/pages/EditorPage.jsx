@@ -34,6 +34,7 @@ function EditorPage() {
   const [output, setOutput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [remoteCursors, setRemoteCursors] = useState({});
 
   const viewRef = useRef(view);
 
@@ -105,6 +106,13 @@ function EditorPage() {
       }
     });
 
+    socket.on("CURSOR_UPDATE", ({ userId, position }) => {
+      setRemoteCursors((prev) => ({
+        ...prev,
+        [userId]: position,
+      }));
+    });
+
     socket.on("connect_error", (err) => {
       toast.error(`Session Expired ${err}`);
       localStorage.clear();
@@ -117,6 +125,18 @@ function EditorPage() {
     };
   }, [roomId]);
 
+useEffect(() => {
+  const cursorArray = Object.entries(remoteCursors).map(
+    ([userId, position]) => ({
+      position,
+      color: "#3b82f6",
+    })
+  );
+
+  editorRef.current?.updateRemoteCursor(cursorArray);
+}, [remoteCursors]);
+
+
   if (!roomId) return <Navigate to="/" />;
 
   const handleCodeChange = (code) => {
@@ -125,6 +145,21 @@ function EditorPage() {
       code,
     });
   };
+
+const cursorTimeout = useRef(null);
+
+const handleCursorChange = (position) => {
+  if (cursorTimeout.current) return;
+
+  cursorTimeout.current = setTimeout(() => {
+    socketRef.current?.emit("CURSOR_MOVE", {
+      roomId,
+      position,
+    });
+    cursorTimeout.current = null;
+  }, 50); // 50ms throttle
+};
+
 
   const handleRun = async () => {
     try {
@@ -270,7 +305,11 @@ function EditorPage() {
         {view === "code" && (
           <>
             <div className="flex-1 min-h-0 overflow-hidden">
-              <Editor ref={editorRef} onCodeChange={handleCodeChange} />
+              <Editor
+                ref={editorRef}
+                onCodeChange={handleCodeChange}
+                onCursorChange={handleCursorChange}
+              />
             </div>
 
             {/* Terminal (only in code view) */}

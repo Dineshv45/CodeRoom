@@ -62,6 +62,13 @@ export default function roomSocket(io, socket) {
     }
   });
 
+  socket.on("CURSOR_MOVE", ({ roomId, position }) => {
+    socket.to(roomId).emit("CURSOR_UPDATE", {
+      userId: socket.user.userId,
+      position,
+    });
+  });
+
   /* ================= LEAVE ROOM ================= */
   socket.on("ROOM_LEAVE", ({ roomId }) => {
     socket.leave(roomId);
