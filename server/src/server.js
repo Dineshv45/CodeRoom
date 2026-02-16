@@ -9,7 +9,7 @@ import initSockets from "./sockets/index.js";
 
 const server = http.createServer(app);
 
-
+const PORT = process.env.PORT || 5000;
 const io = new Server(server, {
   cors: { origin: process.env.FRONT_END_URL },
 });
@@ -18,6 +18,6 @@ const io = new Server(server, {
 initSockets(io);
 
 
-server.listen(5000, () => {
-  console.log("Server running on port 5000");
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
