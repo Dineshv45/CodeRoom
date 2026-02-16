@@ -22,6 +22,7 @@ function EditorPage() {
 
   const socketRef = useRef(null);
   const editorRef = useRef(null);
+  const codeRef = useRef(null);
 
   const { setOnlineUsers, setAllMembers, setSidebarOpen } = useOutletContext();
   const roomName = location.state?.roomName || "Room";
@@ -91,6 +92,7 @@ function EditorPage() {
     });
 
     socket.on("CODE_CHANGE", ({ code }) => {
+      codeRef.current = code;
       editorRef.current?.updateCode(code);
 
       if (viewRef.current !== "code") {
@@ -113,6 +115,10 @@ function EditorPage() {
       }));
     });
 
+    socket.on("CURSOR_INITIAL_SYNC", (initialCursors) => {
+      setRemoteCursors(initialCursors);
+    });
+
     socket.on("connect_error", (err) => {
       toast.error(`Session Expired ${err}`);
       localStorage.clear();
@@ -125,40 +131,41 @@ function EditorPage() {
     };
   }, [roomId]);
 
-useEffect(() => {
-  const cursorArray = Object.entries(remoteCursors).map(
-    ([userId, position]) => ({
-      position,
-      color: "#3b82f6",
-    })
-  );
+  useEffect(() => {
+    const cursorArray = Object.entries(remoteCursors).map(
+      ([userId, position]) => ({
+        position,
+        color: "#3b82f6",
+      })
+    );
 
-  editorRef.current?.updateRemoteCursor(cursorArray);
-}, [remoteCursors]);
+    editorRef.current?.updateRemoteCursor(cursorArray);
+  }, [remoteCursors]);
 
 
   if (!roomId) return <Navigate to="/" />;
 
   const handleCodeChange = (code) => {
+    codeRef.current = code;
     socketRef.current?.emit("CODE_CHANGE", {
       roomId,
       code,
     });
   };
 
-const cursorTimeout = useRef(null);
+  const cursorTimeout = useRef(null);
 
-const handleCursorChange = (position) => {
-  if (cursorTimeout.current) return;
+  const handleCursorChange = (position) => {
+    if (cursorTimeout.current) return;
 
-  cursorTimeout.current = setTimeout(() => {
-    socketRef.current?.emit("CURSOR_MOVE", {
-      roomId,
-      position,
-    });
-    cursorTimeout.current = null;
-  }, 50); // 50ms throttle
-};
+    cursorTimeout.current = setTimeout(() => {
+      socketRef.current?.emit("CURSOR_MOVE", {
+        roomId,
+        position,
+      });
+      cursorTimeout.current = null;
+    }, 50); // 50ms throttle
+  };
 
 
   const handleRun = async () => {
@@ -220,11 +227,10 @@ const handleCursorChange = (position) => {
               setView("code");
               setUnreadCode(false);
             }}
-            className={`relative px-3 py-1 text-sm rounded ${
-              view === "code"
+            className={`relative px-3 py-1 text-sm rounded ${view === "code"
                 ? "bg-blue-600"
                 : "bg-neutral-800 hover:bg-neutral-700"
-            }`}
+              }`}
           >
             Code
             {unreadCode && (
@@ -237,11 +243,10 @@ const handleCursorChange = (position) => {
               setView("chat");
               setUnreadChat(false);
             }}
-            className={`relative px-3 py-1 text-sm rounded ${
-              view === "chat"
+            className={`relative px-3 py-1 text-sm rounded ${view === "chat"
                 ? "bg-blue-600"
                 : "bg-neutral-800 hover:bg-neutral-700"
-            }`}
+              }`}
           >
             Chat
             {unreadChat && (
@@ -307,6 +312,7 @@ const handleCursorChange = (position) => {
             <div className="flex-1 min-h-0 overflow-hidden">
               <Editor
                 ref={editorRef}
+                initialCode={codeRef.current || ""}
                 onCodeChange={handleCodeChange}
                 onCursorChange={handleCursorChange}
               />

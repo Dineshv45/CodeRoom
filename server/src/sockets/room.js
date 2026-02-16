@@ -3,6 +3,9 @@ import Room from "../models/Room.js";
 const onlineUsers = new Map();
 // socket.id → { userId, username, roomId }
 
+const cursorPositions = new Map();
+// roomId -> { userId: position }
+
 export default function roomSocket(io, socket) {
   /* ================= JOIN ROOM ================= */
   socket.on("ROOM_JOIN", async ({ roomId }) => {
@@ -51,11 +54,18 @@ export default function roomSocket(io, socket) {
 
       socket.emit("ROOM_MEMBERS", allMembers);
 
+      /* -------- Send Initial Cursor Positions -------- */
+      const roomCursors = cursorPositions.get(roomId) || {};
+      socket.emit("CURSOR_INITIAL_SYNC", roomCursors);
+
+
       /* -------- Notify Others -------- */
       socket.to(roomId).emit("USER_ONLINE", {
         userId: socket.user.userId,
         username: socket.user.username,
+        roomId 
       });
+
     } catch (err) {
       console.error("ROOM_JOIN error:", err);
       socket.emit("ROOM_ERROR", "Failed to join room");
@@ -63,6 +73,13 @@ export default function roomSocket(io, socket) {
   });
 
   socket.on("CURSOR_MOVE", ({ roomId, position }) => {
+    // Update cursor position in memory
+    if(!cursorPositions.has(roomId)) {
+        cursorPositions.set(roomId, {});
+    }
+    const roomCursors = cursorPositions.get(roomId);
+    roomCursors[socket.user.userId] = position;
+
     socket.to(roomId).emit("CURSOR_UPDATE", {
       userId: socket.user.userId,
       position,
@@ -78,6 +95,18 @@ export default function roomSocket(io, socket) {
     if (user) {
       onlineUsers.delete(socket.id);
 
+      // Clean up cursor if needed (optional - or keep it for reconnection)
+      // For now we keep it so if they reconnect they might still be there, 
+      // but strictly speaking we should probably remove it if they leave explicitly.
+      // Let's remove it to keep map clean.
+      if(cursorPositions.has(roomId)) {
+          const roomCursors = cursorPositions.get(roomId);
+          delete roomCursors[user.userId];
+          if(Object.keys(roomCursors).length === 0) {
+              cursorPositions.delete(roomId);
+          }
+      }
+
       socket.to(roomId).emit("USER_OFFLINE", {
         userId: user.userId,
       });
@@ -90,6 +119,17 @@ export default function roomSocket(io, socket) {
 
     if (user) {
       onlineUsers.delete(socket.id);
+      
+      const roomId = user.roomId;
+      
+      // Clean up cursor
+       if(cursorPositions.has(roomId)) {
+          const roomCursors = cursorPositions.get(roomId);
+          delete roomCursors[user.userId];
+           if(Object.keys(roomCursors).length === 0) {
+              cursorPositions.delete(roomId);
+          }
+      }
 
       const usersInRoom = Array.from(onlineUsers.values()).filter(
         (u) => u.roomId === user.roomId,
