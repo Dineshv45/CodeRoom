@@ -9,54 +9,58 @@ import { closeBrackets } from "@codemirror/autocomplete";
 import { Decoration, WidgetType } from "@codemirror/view";
 import { StateField, StateEffect } from "@codemirror/state";
 
-    const setRemoteCursors = StateEffect.define();
+const setRemoteCursors = StateEffect.define();
 
-    class RemoteCursorWidget extends WidgetType {
-      constructor(color) {
-        super();
-        this.color = color;
-      }
+class RemoteCursorWidget extends WidgetType {
+  constructor(color) {
+    super();
+    this.color = color;
+  }
 
-      toDOM() {
-        const el = document.createElement("span");
-        el.style.borderLeft = `2px solid ${this.color}`;
-        el.style.marginLeft = "-1px";
-        el.style.height = "1em";
-        el.style.pointerEvents = "none";
-        return el;
-      }
+  toDOM() {
+    const el = document.createElement("span");
+    el.style.borderLeft = `2px solid ${this.color}`;
+    el.style.marginLeft = "-1px";
+    el.style.height = "1em";
+    el.style.pointerEvents = "none";
+    return el;
+  }
 
-      ignoreEvent() {
-        return true;
+  ignoreEvent() {
+    return true;
+  }
+}
+
+const remoteCursorField = StateField.define({
+  create() {
+    return Decoration.none;
+  },
+
+  update(cursors, tr) {
+    cursors = cursors.map(tr.changes);
+
+    for (let effect of tr.effects) {
+      if (effect.is(setRemoteCursors)) {
+        const decorations = effect.value.map(({ position, color }) => {
+          // 🔥 CRITICAL: Clamp position to prevent RangeError during race conditions
+          const docLength = tr.state.doc.length;
+          const safePosition = Math.min(Math.max(0, position), docLength);
+
+          return Decoration.widget({
+            widget: new RemoteCursorWidget(color),
+            side: 1,
+          }).range(safePosition);
+        });
+
+        return Decoration.set(decorations);
       }
     }
 
-    const remoteCursorField = StateField.define({
-      create() {
-        return Decoration.none;
-      },
+    return cursors;
+  },
 
-      update(cursors, tr) {
-        cursors = cursors.map(tr.changes);
-
-        for (let effect of tr.effects) {
-          if (effect.is(setRemoteCursors)) {
-            const decorations = effect.value.map(({ position, color }) =>
-              Decoration.widget({
-                widget: new RemoteCursorWidget(color),
-                side: 1,
-              }).range(position),
-            );
-
-            return Decoration.set(decorations);
-          }
-        }
-
-        return cursors;
-      },
-
-      provide: (f) => EditorView.decorations.from(f),
-    });
+  provide: (f) => EditorView.decorations.from(f),
+});
 
 const Editor = forwardRef(
   ({ onCodeChange, onCursorChange, initialCode = "" }, ref) => {
@@ -111,7 +115,7 @@ const Editor = forwardRef(
           onCodeChange?.(code);
         }
 
-        if(update.selectionSet) {
+        if (update.selectionSet) {
           const cursorPos = update.state.selection.main.head;
           onCursorChange?.(cursorPos);
         }
