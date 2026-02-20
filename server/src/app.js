@@ -14,8 +14,19 @@ connection();
 const app = express();
 
 
+const allowedOrigins = [
+  process.env.FRONT_END_URL,
+  "http://localhost:5173"
+];
+
 app.use(cors({
-   origin: process.env.FRONT_END_URL,
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Request Error"));
+    }
+  },
   credentials: true,
 }));
 
