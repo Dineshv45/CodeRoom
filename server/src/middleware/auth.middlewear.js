@@ -15,15 +15,25 @@ export const authMiddleware = async (req, res, next) => {
     const { accessSecret } = getJwtConfig();
 
     if (!accessSecret) {
+      console.error("JWT access secret missing in config");
       return res.status(500).json({ message: "JWT access secret missing" });
     }
 
-    const decoded = jwt.verify(token, accessSecret);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, accessSecret);
+    } catch (verifyErr) {
+      console.error("JWT verification failed:", verifyErr.message);
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
 
-    // 🔥 CRITICAL CHECK — Verify user still exists
+    console.log("Decoded token:", decoded);
+
+    // CRITICAL CHECK — Verify user still exists
     const user = await User.findById(decoded.userId);
 
     if (!user) {
+      console.error(`User not found for ID: ${decoded.userId}`);
       return res.status(401).json({ message: "User no longer exists" });
     }
 
@@ -33,8 +43,10 @@ export const authMiddleware = async (req, res, next) => {
       username: user.username,
     };
 
+    console.log(`Authenticated user: ${user.username}`);
     next();
   } catch (err) {
+    console.error("Auth middleware error:", err);
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
