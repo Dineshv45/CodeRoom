@@ -1,7 +1,7 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Transaction } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
-import { defaultKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { closeBrackets } from "@codemirror/autocomplete";
@@ -85,6 +85,7 @@ const Editor = forwardRef(
             to: viewRef.current.state.doc.length,
             insert: code,
           },
+          annotations: Transaction.addToHistory.of(false),
         });
 
         isRemoteChange.current = false;
@@ -125,7 +126,8 @@ const Editor = forwardRef(
         doc: initialCode,
         extensions: [
           lineNumbers(),
-          keymap.of(defaultKeymap),
+          history(),
+          keymap.of([...defaultKeymap, ...historyKeymap]),
           javascript(),
           closeBrackets(),
           oneDark,
