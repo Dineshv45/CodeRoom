@@ -25,6 +25,9 @@ app.use(cors({
 
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.send("CodeRoom Backend is running 🚀");
+});
 app.use("/api/users", authRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/compile", compileRoutes);
