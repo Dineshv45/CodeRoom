@@ -15,12 +15,13 @@ const app = express();
 
 export const allowedOrigins = [
   process.env.FRONT_END_URL,
-  "http://localhost:5173"
+  "http://localhost:5173",
+  "http://192.168.xxx.xx:5173"
 ];
 
 app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
+  origin: true,
+  credentials: true
 }));
 
 app.use(express.json());

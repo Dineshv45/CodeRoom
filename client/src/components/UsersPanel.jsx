@@ -10,18 +10,16 @@ function UsersPanel({ onlineUsers = [], allMembers = [] }) {
       <div className="flex border-b border-neutral-800">
         <button
           onClick={() => setView("online")}
-          className={`flex-1 py-2 ${
-            view === "online" ? "bg-neutral-800" : ""
-          }`}
+          className={`flex-1 py-2 ${view === "online" ? "bg-neutral-800" : ""
+            }`}
         >
           Online ({onlineUsers.length})
         </button>
 
         <button
           onClick={() => setView("all")}
-          className={`flex-1 py-2 ${
-            view === "all" ? "bg-neutral-800" : ""
-          }`}
+          className={`flex-1 py-2 ${view === "all" ? "bg-neutral-800" : ""
+            }`}
         >
           All Members ({allMembers.length})
         </button>

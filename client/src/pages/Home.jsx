@@ -100,7 +100,7 @@ function Home() {
   }, []);
 
   return (
-<div className="h-screen flex bg-neutral-950 text-white relative overflow-hidden">
+    <div className="h-screen flex bg-neutral-950 text-white relative overflow-hidden">
       {/* ===== Sidebar ===== */}
       <div
         className={`
@@ -117,22 +117,20 @@ function Home() {
               <div className="flex flex-col items-center gap-6 flex-1">
                 <button
                   onClick={() => setActivePanel("rooms")}
-                  className={`p-2 rounded ${
-                    activePanel === "rooms"
+                  className={`p-2 rounded ${activePanel === "rooms"
                       ? "bg-neutral-800"
                       : "hover:bg-neutral-800"
-                  }`}
+                    }`}
                 >
                   <HomeIcon size={20} />
                 </button>
 
                 <button
                   onClick={() => setActivePanel("users")}
-                  className={`p-2 rounded ${
-                    activePanel === "users"
+                  className={`p-2 rounded ${activePanel === "users"
                       ? "bg-neutral-800"
                       : "hover:bg-neutral-800"
-                  }`}
+                    }`}
                 >
                   <Users size={20} />
                 </button>
@@ -201,8 +199,8 @@ function Home() {
               ☰
             </button>
 
-         <h2> <span className="text-sm font-medium ">Code</span>
-           <span className="text-sm font-medium text-blue-600 ">Room</span></h2>
+            <h2> <span className="text-sm font-medium ">Code</span>
+              <span className="text-sm font-medium text-blue-600 ">Room</span></h2>
           </div>
         )}
 

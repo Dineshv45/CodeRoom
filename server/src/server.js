@@ -18,6 +18,6 @@ const io = new Server(server, {
 initSockets(io);
 
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });

@@ -3,31 +3,31 @@ import { useEffect, useRef, useState } from "react";
 function Chat({ socketRef, roomId, messages, setMessages, myUserName }) {
 
   const [chatInput, setChatInput] = useState("");
-  
+
   const bottomRef = useRef(null);
 
 
   function formatTime(timestamp) {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
 
-useEffect(()=>{
-bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-}, [messages]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-const onSendMessage = () => {
-  if (!chatInput.trim()) return;
+  const onSendMessage = () => {
+    if (!chatInput.trim()) return;
 
-  socketRef.current?.emit("CHAT_MESSAGE", {
-    roomId,
-    text: chatInput,
-  });
+    socketRef.current?.emit("CHAT_MESSAGE", {
+      roomId,
+      text: chatInput,
+    });
 
-  setChatInput("");
-};
+    setChatInput("");
+  };
 
 
   return (
@@ -45,11 +45,10 @@ const onSendMessage = () => {
               >
                 <div
                   className={`max-w-[70%] px-3 py-2 rounded-lg text-sm flex flex-col
-              ${
-                isMe
-                  ? "bg-blue-600 text-white rounded-br-none"
-                  : "bg-neutral-800 text-neutral-200 rounded-bl-none"
-              }
+              ${isMe
+                      ? "bg-blue-600 text-white rounded-br-none"
+                      : "bg-neutral-800 text-neutral-200 rounded-bl-none"
+                    }
             `}
                 >
                   {/* Username (only for others) */}
@@ -64,9 +63,8 @@ const onSendMessage = () => {
 
                   {/* Time */}
                   <span
-                    className={`text-[10px] mt-1 self-end ${
-                      isMe ? "text-blue-200" : "text-neutral-400"
-                    }`}
+                    className={`text-[10px] mt-1 self-end ${isMe ? "text-blue-200" : "text-neutral-400"
+                      }`}
                   >
                     {formatTime(msg.time)}
                   </span>
@@ -74,7 +72,7 @@ const onSendMessage = () => {
               </div>
             );
           })}
-           <div ref={bottomRef} />
+          <div ref={bottomRef} />
         </div>
 
         {/* Input */}

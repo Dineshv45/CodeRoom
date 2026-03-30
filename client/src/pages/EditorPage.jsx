@@ -23,15 +23,16 @@ function EditorPage() {
   const socketRef = useRef(null);
   const editorRef = useRef(null);
   const codeRef = useRef(null);
+  const versionRef = useRef(0);
 
   const { setOnlineUsers, setAllMembers, setSidebarOpen } = useOutletContext();
   const roomName = location.state?.roomName || "Room";
 
   const [messages, setMessages] = useState([]);
-  const [view, setView] = useState("code");
+  const [view, setView] = useState(localStorage.getItem("VIEW") || "code");
   const [unreadChat, setUnreadChat] = useState(false);
   const [unreadCode, setUnreadCode] = useState(false);
-  const [language, setLanguage] = useState("javascript");
+  const [language, setLanguage] = useState(localStorage.getItem("LANGUAGE") || "javascript");
   const [output, setOutput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
@@ -79,6 +80,11 @@ function EditorPage() {
       setMessages(history);
     });
 
+    socket.on("CODE_SYNC", ({ code, version }) => {
+      versionRef.current = version;
+      editorRef.current?.updateCode(code);
+    });
+
     socket.on("ROOM_USERS", (users) => {
       setOnlineUsers(users);
     });
@@ -91,14 +97,15 @@ function EditorPage() {
       toast.error(msg);
     });
 
-    socket.on("CODE_CHANGE", ({ code }) => {
-      codeRef.current = code;
-      editorRef.current?.updateCode(code);
+    socket.on("CODE_CHANGE", ({ ops, version }) => {
+      versionRef.current = version;
+      editorRef.current?.applyRemoteDelta(ops);
 
       if (viewRef.current !== "code") {
         setUnreadCode(true);
       }
     });
+
 
     socket.on("CHAT_MESSAGE", (msg) => {
       setMessages((prev) => [...prev, msg]);
@@ -136,20 +143,18 @@ function EditorPage() {
       ([userId, position]) => ({
         position,
         color: "#3b82f6",
-      })
+      }),
     );
 
     editorRef.current?.updateRemoteCursor(cursorArray);
   }, [remoteCursors]);
 
-
   if (!roomId) return <Navigate to="/" />;
 
-  const handleCodeChange = (code) => {
-    codeRef.current = code;
+  const handleCodeChange = (ops) => {
     socketRef.current?.emit("CODE_CHANGE", {
       roomId,
-      code,
+      ops,
     });
   };
 
@@ -166,7 +171,6 @@ function EditorPage() {
       cursorTimeout.current = null;
     }, 50); // 50ms throttle
   };
-
 
   const handleRun = async () => {
     try {
@@ -226,6 +230,7 @@ function EditorPage() {
             onClick={() => {
               setView("code");
               setUnreadCode(false);
+              localStorage.setItem("VIEW", "code");
             }}
             className={`relative px-3 py-1 text-sm rounded ${view === "code"
                 ? "bg-blue-600"
@@ -272,7 +277,11 @@ function EditorPage() {
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              onChange={(e) => {
+                setLanguage(e.target.value)
+                localStorage.setItem("LANGUAGE", e.target.value)
+              }}
+
               className="bg-neutral-900 text-sm px-2 py-1 rounded"
             >
               <option value="javascript">JavaScript</option>

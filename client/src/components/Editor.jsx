@@ -42,7 +42,7 @@ const remoteCursorField = StateField.define({
     for (let effect of tr.effects) {
       if (effect.is(setRemoteCursors)) {
         const decorations = effect.value.map(({ position, color }) => {
-          // 🔥 CRITICAL: Clamp position to prevent RangeError during race conditions
+          //  CRITICAL: Clamp position to prevent RangeError during race conditions
           const docLength = tr.state.doc.length;
           const safePosition = Math.min(Math.max(0, position), docLength);
 
@@ -91,6 +91,25 @@ const Editor = forwardRef(
         isRemoteChange.current = false;
       },
 
+      applyRemoteDelta(ops) {
+        if (!viewRef.current) return;
+
+        isRemoteChange.current = true;
+
+        const changes = ops.map(op => ({
+          from: op.from,
+          to: op.to,
+          insert: op.text,
+        }));
+
+        viewRef.current.dispatch({
+          changes,
+          annotations: Transaction.addToHistory.of(false),
+        });
+
+        isRemoteChange.current = false;
+      },
+
       getCode() {
         return viewRef.current?.state.doc.toString();
       },
@@ -112,8 +131,19 @@ const Editor = forwardRef(
 
       const updateListener = EditorView.updateListener.of((update) => {
         if (update.docChanged && !isRemoteChange.current) {
-          const code = update.state.doc.toString();
-          onCodeChange?.(code);
+          const ops = [];
+
+          update.changes.iterChanges(
+            (fromA, toA, fromB, toB, inserted) => {
+              ops.push({
+                from: fromA,
+                to: toA,
+                text: inserted.toString()
+              })
+            }
+          );
+
+          onCodeChange?.(ops);
         }
 
         if (update.selectionSet) {

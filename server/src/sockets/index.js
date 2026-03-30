@@ -3,10 +3,10 @@ import roomSocket from "./room.js";
 import codeSocket from "./code.js";
 import chatSocket from "./chat.js";
 
-export default function initSockets(io){
+export default function initSockets(io) {
     socketAuth(io);
 
-    io.on("connection", (socket) =>{
+    io.on("connection", (socket) => {
         roomSocket(io, socket);
         codeSocket(io, socket);
         chatSocket(io, socket);

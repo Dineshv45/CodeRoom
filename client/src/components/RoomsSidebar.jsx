@@ -14,11 +14,11 @@ function RoomsSidebar({ rooms, onSelectRoom, onCreate }) {
     await navigator.clipboard.writeText(link);
     toast.success("Invite link copied");
 
-    
+
   };
 
   return (
-<aside className="h-full w-full bg-neutral-900 flex flex-col">
+    <aside className="h-full w-full bg-neutral-900 flex flex-col">
       {/* ===== Header (fixed height) ===== */}
       <div className="shrink-0 px-4 py-3 border-b border-neutral-800 flex items-center justify-between">
         <h2 className="text-sm font-semibold tracking-wide">
@@ -48,12 +48,11 @@ function RoomsSidebar({ rooms, onSelectRoom, onCreate }) {
           return (
             <div
               key={room.roomId}
-             onClick={() => onSelectRoom(room)}
+              onClick={() => onSelectRoom(room)}
               className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition
-                ${
-                  isActive
-                    ? "bg-neutral-800"
-                    : "hover:bg-neutral-800/70"
+                ${isActive
+                  ? "bg-neutral-800"
+                  : "hover:bg-neutral-800/70"
                 }`}
             >
               {/* Avatar */}
@@ -67,9 +66,8 @@ function RoomsSidebar({ rooms, onSelectRoom, onCreate }) {
               {/* Room name */}
               <div className="flex-1 min-w-0">
                 <p
-                  className={`text-sm truncate ${
-                    isActive ? "font-medium" : ""
-                  }`}
+                  className={`text-sm truncate ${isActive ? "font-medium" : ""
+                    }`}
                 >
                   {room.roomName}
                 </p>
