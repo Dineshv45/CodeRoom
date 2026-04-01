@@ -9,10 +9,11 @@ import toast from "react-hot-toast";
 import { jwtDecode } from "jwt-decode";
 import { initSocket } from "../socket";
 import { requireAuth } from "../utils/requireAuth";
-import { Plus } from "lucide-react";
+import { Layout } from "lucide-react";
 
 import Editor from "../components/Editor";
 import Chat from "../components/Chat";
+import TabSystem from "../components/TabSystem";
 import { useOutletContext } from "react-router-dom";
 
 function EditorPage() {
@@ -22,8 +23,6 @@ function EditorPage() {
 
   const socketRef = useRef(null);
   const editorRef = useRef(null);
-  const codeRef = useRef(null);
-  const versionRef = useRef(0);
 
   const { setOnlineUsers, setAllMembers, setSidebarOpen } = useOutletContext();
   const roomName = location.state?.roomName || "Room";
@@ -32,11 +31,15 @@ function EditorPage() {
   const [view, setView] = useState(localStorage.getItem("VIEW") || "code");
   const [unreadChat, setUnreadChat] = useState(false);
   const [unreadCode, setUnreadCode] = useState(false);
-  const [language, setLanguage] = useState(localStorage.getItem("LANGUAGE") || "javascript");
+
   const [output, setOutput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-  const [remoteCursors, setRemoteCursors] = useState({});
+
+  // Multi-file state
+  const [allFiles, setAllFiles] = useState([]);
+  const [openFiles, setOpenFiles] = useState([]);
+  const [activeFile, setActiveFile] = useState(null);
 
   const viewRef = useRef(view);
 
@@ -55,6 +58,28 @@ function EditorPage() {
     if (!requireAuth(navigate)) return;
   }, []);
 
+  const fetchFiles = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/files`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAllFiles(data);
+        // Default to opening the first file if none open
+        if (data.length > 0 && openFiles.length === 0) {
+          const mainFile = data.find(f => f.fileName === "main.js") || data[0];
+          setOpenFiles([mainFile]);
+          setActiveFile(mainFile);
+        }
+      }
+    } catch {
+      toast.error("Failed to fetch files");
+    }
+  };
+
   /* ---------- socket lifecycle ---------- */
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
@@ -67,22 +92,19 @@ function EditorPage() {
 
     if (!roomId) return;
 
-    const socket = initSocket({ token }); // (JWT later for socket auth)
+    // 1. Core Socket.io
+    const socket = initSocket({ token });
     socketRef.current = socket;
 
+    // 2. Initial Load
+    fetchFiles();
+
+    // 3. Socket Event Listeners
     socket.emit("ROOM_JOIN", { roomId });
-
-    socket.emit("CODE_SYNC", { roomId });
-
     socket.emit("CHAT_SYNC", { roomId });
 
     socket.on("CHAT_HISTORY", (history) => {
       setMessages(history);
-    });
-
-    socket.on("CODE_SYNC", ({ code, version }) => {
-      versionRef.current = version;
-      editorRef.current?.updateCode(code);
     });
 
     socket.on("ROOM_USERS", (users) => {
@@ -97,33 +119,23 @@ function EditorPage() {
       toast.error(msg);
     });
 
-    socket.on("CODE_CHANGE", ({ ops, version }) => {
-      versionRef.current = version;
-      editorRef.current?.applyRemoteDelta(ops);
-
-      if (viewRef.current !== "code") {
-        setUnreadCode(true);
-      }
-    });
-
-
     socket.on("CHAT_MESSAGE", (msg) => {
       setMessages((prev) => [...prev, msg]);
-
       if (viewRef.current !== "chat") {
         setUnreadChat(true);
       }
     });
 
-    socket.on("CURSOR_UPDATE", ({ userId, position }) => {
-      setRemoteCursors((prev) => ({
-        ...prev,
-        [userId]: position,
-      }));
+    socket.on("FILE_CREATED", (newFile) => {
+      setAllFiles((prev) => [...prev, newFile]);
     });
 
-    socket.on("CURSOR_INITIAL_SYNC", (initialCursors) => {
-      setRemoteCursors(initialCursors);
+    socket.on("FILE_DELETED", (fileId) => {
+      setAllFiles((prev) => prev.filter(f => f._id !== fileId));
+      setOpenFiles((prev) => prev.filter(f => f._id !== fileId));
+      if (activeFile?._id === fileId) {
+        setActiveFile(null);
+      }
     });
 
     socket.on("connect_error", (err) => {
@@ -138,45 +150,60 @@ function EditorPage() {
     };
   }, [roomId]);
 
-  useEffect(() => {
-    const cursorArray = Object.entries(remoteCursors).map(
-      ([userId, position]) => ({
-        position,
-        color: "#3b82f6",
-      }),
-    );
-
-    editorRef.current?.updateRemoteCursor(cursorArray);
-  }, [remoteCursors]);
-
   if (!roomId) return <Navigate to="/" />;
 
-  const handleCodeChange = (ops) => {
-    socketRef.current?.emit("CODE_CHANGE", {
-      roomId,
-      ops,
-    });
+  const handleTabCreate = async (fileName) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/files`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+        body: JSON.stringify({
+          fileName,
+          fileType: "file",
+        }),
+      });
+
+      const newFile = await res.json();
+      if (res.ok) {
+        setAllFiles((prev) => [...prev, newFile]);
+        setOpenFiles((prev) => [...prev, newFile]);
+        setActiveFile(newFile);
+        socketRef.current.emit("FILE_CREATED", { roomId, file: newFile });
+      } else {
+        toast.error(newFile.message || "Error creating file");
+      }
+    } catch {
+      toast.error("Error creating file");
+    }
   };
 
-  const cursorTimeout = useRef(null);
+  const handleTabSelect = (file) => {
+    if (!openFiles.find(f => f._id === file._id)) {
+      setOpenFiles(prev => [...prev, file]);
+    }
+    setActiveFile(file);
+  };
 
-  const handleCursorChange = (position) => {
-    if (cursorTimeout.current) return;
-
-    cursorTimeout.current = setTimeout(() => {
-      socketRef.current?.emit("CURSOR_MOVE", {
-        roomId,
-        position,
-      });
-      cursorTimeout.current = null;
-    }, 50); // 50ms throttle
+  const handleTabClose = (fileId) => {
+    const updated = openFiles.filter(f => f._id !== fileId);
+    setOpenFiles(updated);
+    if (activeFile?._id === fileId) {
+      setActiveFile(updated.length > 0 ? updated[updated.length - 1] : null);
+    }
   };
 
   const handleRun = async () => {
+    if (!activeFile) {
+      toast.error("Select a file to run");
+      return;
+    }
     try {
       setIsRunning(true);
       setIsTerminalOpen(true);
-      setOutput("Running...");
+      setOutput("Running " + activeFile.fileName + "...");
 
       const res = await fetch(
         `${import.meta.env.VITE_BACKEND_URL}/api/compile`,
@@ -187,19 +214,17 @@ function EditorPage() {
             Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
           },
           body: JSON.stringify({
-            language,
+            language: activeFile.fileName.split('.').pop(),
             code: editorRef.current.getCode(),
           }),
         },
       );
 
       const data = await res.json();
-
       if (!res.ok) {
-        setOutput("Compilation failed");
+        setOutput("Error: " + (data.error || "Compilation failed"));
         return;
       }
-
       setOutput(data.output || "No Output");
     } catch (err) {
       setOutput("Error running code");
@@ -212,7 +237,6 @@ function EditorPage() {
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* ===== Top bar ===== */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-800 bg-neutral-900">
-        {/* Left side */}
         <div className="flex items-center gap-4">
           <button
             className="md:hidden z-40 relative"
@@ -220,11 +244,9 @@ function EditorPage() {
           >
             ☰
           </button>
-
           <h2 className="text-sm font-medium">{roomName}</h2>
         </div>
 
-        {/* Center Toggle (Desktop + Mobile) */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
@@ -233,8 +255,8 @@ function EditorPage() {
               localStorage.setItem("VIEW", "code");
             }}
             className={`relative px-3 py-1 text-sm rounded ${view === "code"
-                ? "bg-blue-600"
-                : "bg-neutral-800 hover:bg-neutral-700"
+              ? "bg-blue-600"
+              : "bg-neutral-800 hover:bg-neutral-700"
               }`}
           >
             Code
@@ -249,8 +271,8 @@ function EditorPage() {
               setUnreadChat(false);
             }}
             className={`relative px-3 py-1 text-sm rounded ${view === "chat"
-                ? "bg-blue-600"
-                : "bg-neutral-800 hover:bg-neutral-700"
+              ? "bg-blue-600"
+              : "bg-neutral-800 hover:bg-neutral-700"
               }`}
           >
             Chat
@@ -260,74 +282,51 @@ function EditorPage() {
           </button>
         </div>
 
-        {/* Right side */}
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-1 px-2 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded"
-        >
-          <Plus size={14} />
-          New
-        </button>
-      </div>
-
-      {/* ===== Compile Navbar ===== */}
-      {view === "code" && (
-        <div className="flex items-center justify-between px-4 py-2 bg-neutral-850 border-b border-neutral-800">
-          {/* ===== IDE Controls Bar ===== */}
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={language}
-              onChange={(e) => {
-                setLanguage(e.target.value)
-                localStorage.setItem("LANGUAGE", e.target.value)
-              }}
-
-              className="bg-neutral-900 text-sm px-2 py-1 rounded"
-            >
-              <option value="javascript">JavaScript</option>
-              <option value="java">Java</option>
-              <option value="python">Python</option>
-              <option value="cpp">C++</option>
-            </select>
-
-            <button
-              onClick={handleRun}
-              disabled={isRunning}
-              className="px-3 py-1 bg-blue-600 text-sm rounded hover:bg-blue-700"
-            >
-              {isRunning ? "Running..." : "Run"}
-            </button>
-
-            <button
-              onClick={() => setIsTerminalOpen((prev) => !prev)}
-              className="px-3 py-1 bg-neutral-700 text-sm rounded hover:bg-neutral-600"
-            >
-              {isTerminalOpen ? "Hide Terminal" : "Open Terminal"}
-            </button>
-          </div>
-
-          {/* Right: Placeholder Fullscreen Button */}
-          <button className="hidden sm:inline-block text-sm px-3 py-1 bg-neutral-800 rounded hover:bg-neutral-700 w-full sm:w-auto">
-            Fullscreen
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRun}
+            disabled={isRunning}
+            className="px-4 py-1 bg-green-600 text-sm rounded hover:bg-green-700 flex items-center gap-2"
+          >
+            {isRunning ? "..." : "Run"}
+          </button>
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded"
+          >
+            Leave
           </button>
         </div>
-      )}
+      </div>
 
       {/* ===== Main area ===== */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* CODE VIEW */}
         {view === "code" && (
           <>
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <Editor
-                ref={editorRef}
-                initialCode={codeRef.current || ""}
-                onCodeChange={handleCodeChange}
-                onCursorChange={handleCursorChange}
-              />
+            <TabSystem
+              openFiles={openFiles}
+              activeFileId={activeFile?._id}
+              onTabSelect={handleTabSelect}
+              onTabClose={handleTabClose}
+              onTabCreate={handleTabCreate}
+            />
+
+            <div className="flex-1 min-h-0 overflow-hidden relative">
+              {activeFile ? (
+                <Editor
+                  ref={editorRef}
+                  fileId={activeFile._id}
+                  fileName={activeFile.fileName}
+                  username={myUsername}
+                />
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-4">
+                  <Layout size={48} className="opacity-20" />
+                  <p>Click the + button to create a new file</p>
+                </div>
+              )}
             </div>
 
-            {/* Terminal (only in code view) */}
             <div
               className={`
           transition-all duration-300 ease-in-out
@@ -336,8 +335,8 @@ function EditorPage() {
           overflow-hidden
         `}
             >
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-2 bg-neutral-900 border-b border-neutral-800">
-                <span>Terminal</span>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-2 bg-neutral-900 border-b border-neutral-800 text-sm text-neutral-400">
+                <span>Terminal Output</span>
                 <button
                   onClick={() => setIsTerminalOpen(false)}
                   className="text-red-400 hover:text-red-500"
@@ -346,14 +345,13 @@ function EditorPage() {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 text-green-400 font-mono text-sm whitespace-pre-wrap">
+              <div className="flex-1 overflow-y-auto p-3 text-green-400 font-mono text-xs whitespace-pre-wrap">
                 {output}
               </div>
             </div>
           </>
         )}
 
-        {/* CHAT VIEW */}
         {view === "chat" && (
           <div className="flex-1 min-h-0 overflow-hidden">
             <Chat

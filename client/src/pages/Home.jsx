@@ -5,7 +5,7 @@ import { requireAuth } from "../utils/requireAuth";
 import RoomsSidebar from "../components/RoomsSidebar";
 import UsersPanel from "../components/UsersPanel";
 import EmptyState from "../components/EmptyState";
-import { Users, User, Settings, X, Home as HomeIcon } from "lucide-react";
+import { Users, User, Settings, X, Home as HomeIcon, LogOut } from "lucide-react";
 
 function Home() {
   const navigate = useNavigate();
@@ -16,6 +16,7 @@ function Home() {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [allMembers, setAllMembers] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showLogout, setShowLogout] = useState(false);
 
   const token = localStorage.getItem("accessToken");
   const isEditorOpen = location.pathname.startsWith("/editor/");
@@ -94,6 +95,12 @@ function Home() {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.clear();
+    toast.success("Logged out successfully");
+    navigate("/login");
+  };
+
   useEffect(() => {
     if (!requireAuth(navigate)) return;
     fetchRooms();
@@ -144,9 +151,26 @@ function Home() {
               </button>
             </div>
 
-            <div className="mb-4">
-              <button className="p-2 rounded hover:bg-neutral-800">
-                <Settings size={20} />
+            <div className="mb-4 flex flex-col items-center gap-2 relative">
+              {showLogout && (
+                <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-neutral-800 border border-neutral-700 rounded shadow-xl overflow-hidden animate-in fade-in slide-in-from-left-2 duration-200 z-50">
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 px-4 py-2 hover:bg-neutral-700 text-red-400 transition-colors whitespace-nowrap text-sm"
+                  >
+                    <LogOut size={16} />
+                    Logout
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setShowLogout(!showLogout)}
+                className={`p-2 rounded hover:bg-neutral-800 transition-all duration-300 ${showLogout ? "bg-neutral-800 text-blue-400 shadow-lg shadow-blue-500/20" : ""}`}
+              >
+                <Settings 
+                  size={20} 
+                  className={`transition-transform duration-500 ${showLogout ? "rotate-180" : "rotate-0"}`}
+                />
               </button>
             </div>
           </div>

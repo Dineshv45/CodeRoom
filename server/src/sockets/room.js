@@ -63,7 +63,7 @@ export default function roomSocket(io, socket) {
       socket.to(roomId).emit("USER_ONLINE", {
         userId: socket.user.userId,
         username: socket.user.username,
-        roomId 
+        roomId
       });
 
     } catch (err) {
@@ -74,8 +74,8 @@ export default function roomSocket(io, socket) {
 
   socket.on("CURSOR_MOVE", ({ roomId, position }) => {
     // Update cursor position in memory
-    if(!cursorPositions.has(roomId)) {
-        cursorPositions.set(roomId, {});
+    if (!cursorPositions.has(roomId)) {
+      cursorPositions.set(roomId, {});
     }
     const roomCursors = cursorPositions.get(roomId);
     roomCursors[socket.user.userId] = position;
@@ -99,12 +99,12 @@ export default function roomSocket(io, socket) {
       // For now we keep it so if they reconnect they might still be there, 
       // but strictly speaking we should probably remove it if they leave explicitly.
       // Let's remove it to keep map clean.
-      if(cursorPositions.has(roomId)) {
-          const roomCursors = cursorPositions.get(roomId);
-          delete roomCursors[user.userId];
-          if(Object.keys(roomCursors).length === 0) {
-              cursorPositions.delete(roomId);
-          }
+      if (cursorPositions.has(roomId)) {
+        const roomCursors = cursorPositions.get(roomId);
+        delete roomCursors[user.userId];
+        if (Object.keys(roomCursors).length === 0) {
+          cursorPositions.delete(roomId);
+        }
       }
 
       socket.to(roomId).emit("USER_OFFLINE", {
@@ -119,16 +119,16 @@ export default function roomSocket(io, socket) {
 
     if (user) {
       onlineUsers.delete(socket.id);
-      
+
       const roomId = user.roomId;
-      
+
       // Clean up cursor
-       if(cursorPositions.has(roomId)) {
-          const roomCursors = cursorPositions.get(roomId);
-          delete roomCursors[user.userId];
-           if(Object.keys(roomCursors).length === 0) {
-              cursorPositions.delete(roomId);
-          }
+      if (cursorPositions.has(roomId)) {
+        const roomCursors = cursorPositions.get(roomId);
+        delete roomCursors[user.userId];
+        if (Object.keys(roomCursors).length === 0) {
+          cursorPositions.delete(roomId);
+        }
       }
 
       const usersInRoom = Array.from(onlineUsers.values()).filter(

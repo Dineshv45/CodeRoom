@@ -1,5 +1,45 @@
 import Room from "../models/Room.js";
+import File from "../models/File.js";
 import { v4 as uuidv4 } from "uuid";
+
+/* ================= GET ALL FILES FOR ROOM ================= */
+export const getFiles = async (req, res) => {
+  const { roomId } = req.params;
+  try {
+    const files = await File.find({ roomId }).sort({ createdAt: 1 });
+    res.json(files);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching files" });
+  }
+};
+
+/* ================= CREATE NEW FILE ================= */
+export const createFile = async (req, res) => {
+  const { roomId } = req.params;
+  const { fileName, fileType } = req.body;
+
+  try {
+    const file = await File.create({
+      roomId,
+      fileName,
+      fileType: fileType || "file",
+    });
+    res.status(201).json(file);
+  } catch (err) {
+    res.status(500).json({ message: "Error creating file" });
+  }
+};
+
+/* ================= DELETE FILE ================= */
+export const deleteFile = async (req, res) => {
+  const { fileId } = req.params;
+  try {
+    await File.findByIdAndDelete(fileId);
+    res.json({ message: "File deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Error deleting file" });
+  }
+};
 
 /* ================= GET MY ROOMS ================= */
 export const getMyRooms = async (req, res) => {
@@ -23,11 +63,19 @@ export const createRoom = async (req, res) => {
     return res.status(400).json({ message: "Room name is required" });
   }
 
+  const roomId = uuidv4();
   const room = await Room.create({
-    roomId: uuidv4(),
+    roomId,
     roomName,
     owner: userId,
-    members: [userId], // important
+    members: [userId],
+  });
+
+  // Create a default 'main.js' file for the room
+  await File.create({
+      roomId,
+      fileName: "Main.java",
+      fileType: "file",
   });
 
   res.status(201).json({
