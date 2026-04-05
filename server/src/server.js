@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config();
+import "dotenv/config";
 
 import http from "http";
 import { Server } from "socket.io";
@@ -9,7 +8,7 @@ import initSockets from "./sockets/index.js";
 
 const server = http.createServer(app);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 const io = new Server(server, {
   cors: { origin: allowedOrigins },
 });

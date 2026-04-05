@@ -1,12 +1,14 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import {
   generateAccessToken,
   generateRefreshToken,
 } from "../utils/token.js";
 import { getJwtConfig } from "../config/jwt.js";
 import { validatePassword } from "../utils/passwordValidate.js";
+import { sendVerificationMail } from "../utils/mail.js";
 import passport from "passport";
 
 
@@ -37,13 +39,19 @@ export const register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await User.create({
+    const user = await User.create({
       username,
       email,
-      password: hashedPassword,
-    });
+      password:hashedPassword,
+      authProvider:"email",
+      isVerified:false,
+      verificationToken:crypto.randomBytes(32).toString("hex"),
+      verificationTokenExpiry:Date.now() + 24 * 60 * 60 * 1000,
+    })
 
-    res.status(201).json({ message: "User Registered Successfully" });
+    await sendVerificationMail(email, user.verificationToken)
+
+    res.status(201).json({ message: "Registration successful. Please check your email to verify your account." });
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).json({ message: "Registration failed", error: error.message });
@@ -59,13 +67,16 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Missing credentials" });
     }
 
-
     const user = await User.findOne({
       $or: [{ email: identifier }, { username: identifier }],
     });
 
     if (!user) {
-      return res.status(401).json({ message: "Username does not Exists" });
+      return res.status(401).json({ message: "User does not exist" });
+    }
+
+    if (!user.isVerified) {
+      return res.status(401).json({ message: "Please verify your email address before logging in." });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -119,3 +130,58 @@ export const refreshAccessToken = async (req, res) => {
     res.status(403).json({ message: "Expired refresh token" });
   }
 };
+/* ================= GOOGLE AUTH CALLBACK ================= */
+export const googleAuthCallback = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.redirect(`${process.env.FRONT_END_URL}/login?error=auth_failed`);
+    }
+
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    // Redirect to frontend with tokens
+    // Note: In production, consider using secure, http-only cookies instead
+    res.redirect(`${process.env.FRONT_END_URL}/auth-success?token=${accessToken}&refreshToken=${refreshToken}`);
+  } catch (error) {
+    console.error("Google auth callback error:", error);
+    res.redirect(`${process.env.FRONT_END_URL}/login?error=server_error`);
+  }
+};
+
+
+
+//     Email Verification
+
+export const verifyEmail = async (req, res) =>{
+  try {
+    const {token} = req.params;
+
+    if(!token){
+      return res.status(400).json({message:"Token is required"})
+    }
+
+    const user = await User.findOne({
+      verificationToken:token,
+      verificationTokenExpiry:{$gt:Date.now()}
+    })
+
+    if(!user){
+      return res.status(400).json({message:"Invalid or expired verification token"})
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpiry = undefined;
+    await user.save();
+
+    res.redirect(`${process.env.FRONT_END_URL}/verify-success`);
+  } catch (error) {
+    console.error("Email verification error:", error);
+    res.redirect(`${process.env.FRONT_END_URL}/verify-error?message=${encodeURIComponent(error.message)}`);
+  }
+}

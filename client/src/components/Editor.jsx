@@ -73,7 +73,7 @@ const Editor = forwardRef(
       ydocRef.current = ydoc;
 
       const provider = new SocketIOProvider(
-        import.meta.env.VITE_BACKEND_URL || "http://localhost:5000",
+        import.meta.env.VITE_BACKEND_URL || "http://localhost:3000",
         fileId,
         ydoc,
         { auth: { token: localStorage.getItem("accessToken") } }
