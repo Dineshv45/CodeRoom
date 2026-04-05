@@ -36,3 +36,61 @@
 html {
   scroll-behavior: smooth;
 }
+
+/* Yjs Selection & Caret Styles */
+.cm-ySelection {
+  background-color: var(--y-color-light) !important;
+  opacity: 0.3;
+}
+
+.cm-ySelectionCaret {
+  position: absolute;
+  border-left: 2px solid var(--y-color);
+  border-right: 2px solid var(--y-color);
+  margin-left: -1px;
+  margin-right: -1px;
+  box-sizing: border-box;
+  display: inline-block;
+  height: 1.4em;
+  vertical-align: 25%;
+  z-index: 100;
+}
+
+.cm-ySelectionInfo {
+  position: absolute;
+  top: -1.25em;
+  left: -1px;
+  font-size: 10px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: white;
+  background-color: var(--y-color);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  z-index: 101;
+}
+
+.cm-ySelectionCaret:hover + .cm-ySelectionInfo {
+  opacity: 1;
+}
+
+/* Display names by default but fade them out after some time */
+.cm-ySelectionInfo {
+  animation: fadeOut 2s forwards;
+  animation-delay: 1s;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.cm-ySelectionCaret:hover + .cm-ySelectionInfo {
+  opacity: 1 !important;
+  animation: none;
+}

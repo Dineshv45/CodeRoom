@@ -6,6 +6,7 @@ import RoomsSidebar from "../components/RoomsSidebar";
 import UsersPanel from "../components/UsersPanel";
 import EmptyState from "../components/EmptyState";
 import { Users, User, Settings, X, Home as HomeIcon, LogOut } from "lucide-react";
+import CreateRoomModal from "../components/CreateRoomModal";
 
 function Home() {
   const navigate = useNavigate();
@@ -17,6 +18,8 @@ function Home() {
   const [allMembers, setAllMembers] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
+  const [creatingRoom, setCreatingRoom] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const token = localStorage.getItem("accessToken");
   const isEditorOpen = location.pathname.startsWith("/editor/");
@@ -50,7 +53,14 @@ function Home() {
     }
   };
 
-  const createRoom = async (roomName) => {
+  const createRoom = async (name) => {
+    // If no name is provided (e.g. from Sidebar or EmptyState), show the modal
+    if (!name || typeof name !== "string") {
+      setShowCreateModal(true);
+      return;
+    }
+
+    setCreatingRoom(true);
     try {
       const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms`, {
         method: "POST",
@@ -58,20 +68,27 @@ function Home() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ roomName }),
+        body: JSON.stringify({ roomName: name.trim() }),
       });
 
       if (!res.ok) {
-        toast.error("Failed to create room");
+        const errorData = await res.json();
+        toast.error(errorData.message || "Failed to create room");
         return;
       }
 
       const room = await res.json();
+      toast.success("Room created successfully!");
+      
       await fetchRooms();
-
-      navigate(`/editor/${room.roomId}`);
-    } catch {
+      navigate(`/editor/${room.roomId}`, {
+        state: { roomName: room.roomName },
+      });
+    } catch (err) {
+      console.error(err);
       toast.error("Error creating room");
+    } finally {
+      setCreatingRoom(false);
     }
   };
 
@@ -143,12 +160,6 @@ function Home() {
                 </button>
               </div>
 
-              <button
-                onClick={() => setActivePanel("profile")}
-                className="p-2 rounded hover:bg-neutral-800"
-              >
-                <User size={20} />
-              </button>
             </div>
 
             <div className="mb-4 flex flex-col items-center gap-2 relative">
@@ -195,6 +206,7 @@ function Home() {
                     });
                     setSidebarOpen(false);
                   }}
+                  onCreate={createRoom}
                 />
               )}
 
@@ -234,6 +246,12 @@ function Home() {
           <EmptyState onCreate={createRoom} onJoin={joinRoom} />
         )}
       </div>
+      {showCreateModal && (
+        <CreateRoomModal
+          onClose={() => setShowCreateModal(false)}
+          onCreate={createRoom}
+        />
+      )}
     </div>
   );
 }

@@ -3,23 +3,10 @@ import { Plus, Link2 } from "lucide-react";
 import toast from "react-hot-toast";
 
 function EmptyState({ onCreate, onJoin }) {
-  const [showCreateInput, setShowCreateInput] = useState(false);
   const [showJoinInput, setShowJoinInput] = useState(false);
-
-  const [roomName, setRoomName] = useState("");
   const [inviteLink, setInviteLink] = useState("");
 
   /* ===== CREATE ROOM ===== */
-  const handleCreate = () => {
-    if (!roomName.trim()) {
-      toast.error("Room name is required");
-      return;
-    }
-
-    onCreate(roomName);
-    setRoomName("");
-    setShowCreateInput(false);
-  };
 
   /* ===== JOIN ROOM ===== */
   const handleJoin = () => {
@@ -61,33 +48,13 @@ function EmptyState({ onCreate, onJoin }) {
 
         <div className="flex flex-col gap-3">
           {/* ===== CREATE SECTION ===== */}
-          {!showCreateInput ? (
-            <button
-              onClick={() => {
-                setShowCreateInput(true);
-                setShowJoinInput(false);
-              }}
-              className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700"
-            >
-              Create Room
-            </button>
-          ) : (
-            <>
-              <input
-                type="text"
-                placeholder="Enter room name"
-                value={roomName}
-                onChange={(e) => setRoomName(e.target.value)}
-                className="px-3 py-2 rounded bg-neutral-800 text-white"
-              />
-              <button
-                onClick={handleCreate}
-                className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700"
-              >
-                Confirm Create
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => onCreate()}
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 font-semibold transition-all active:scale-95 shadow-lg shadow-blue-600/20"
+          >
+            <Plus size={18} />
+            Create Room
+          </button>
 
           {/* ===== JOIN SECTION ===== */}
           {!showJoinInput ? (

@@ -10,6 +10,7 @@ function TabSystem({ openFiles, activeFileId, onTabSelect, onTabClose, onTabCrea
       onTabCreate(newFileName.trim());
       setNewFileName("");
       setIsCreating(false);
+      
     }
   };
 

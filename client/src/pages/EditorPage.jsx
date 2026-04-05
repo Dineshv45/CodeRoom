@@ -14,6 +14,7 @@ import { Layout } from "lucide-react";
 import Editor from "../components/Editor";
 import Chat from "../components/Chat";
 import TabSystem from "../components/TabSystem";
+import MobileTopBar from "../components/mobileTopBar";
 import { useOutletContext } from "react-router-dom";
 
 function EditorPage() {
@@ -58,6 +59,39 @@ function EditorPage() {
     if (!requireAuth(navigate)) return;
   }, []);
 
+  const fetchWorkspace = async (currentFiles) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/workspace`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        // 1. Shared Tabs (from Room.files)
+        if (currentFiles && currentFiles.length > 0) {
+          setOpenFiles(currentFiles);
+
+          // 2. Personal Focus (from Workspace.activeFile)
+          if (data.activeFile) {
+            const active = currentFiles.find(f => f._id === data.activeFile._id);
+            if (active) setActiveFile(active);
+            else setActiveFile(data.openFiles[0]);
+          } else {
+            setActiveFile(data.openFiles[0]);
+          }
+        } else {
+          // If room has no files yet, open nothing
+          setOpenFiles([]);
+          setActiveFile(null);
+        }
+      }
+    } catch (err) {
+      console.error("Workspace fetch error:", err);
+    }
+  };
+
   const fetchFiles = async () => {
     try {
       const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/files`, {
@@ -68,12 +102,7 @@ function EditorPage() {
       const data = await res.json();
       if (res.ok) {
         setAllFiles(data);
-        // Default to opening the first file if none open
-        if (data.length > 0 && openFiles.length === 0) {
-          const mainFile = data.find(f => f.fileName === "main.js") || data[0];
-          setOpenFiles([mainFile]);
-          setActiveFile(mainFile);
-        }
+        fetchWorkspace(data);
       }
     } catch {
       toast.error("Failed to fetch files");
@@ -127,15 +156,30 @@ function EditorPage() {
     });
 
     socket.on("FILE_CREATED", (newFile) => {
-      setAllFiles((prev) => [...prev, newFile]);
+      setAllFiles((prev) => {
+        const isAlreadyThere = prev.some(f => f._id === newFile._id);
+        return isAlreadyThere ? prev : [...prev, newFile];
+      });
+      // Also automatically open the new file in tabs for all users
+      setOpenFiles((prev) => {
+        const isAlreadyOpen = prev.some(f => f._id === newFile._id);
+        return isAlreadyOpen ? prev : [...prev, newFile];
+      });
     });
 
     socket.on("FILE_DELETED", (fileId) => {
-      setAllFiles((prev) => prev.filter(f => f._id !== fileId));
-      setOpenFiles((prev) => prev.filter(f => f._id !== fileId));
-      if (activeFile?._id === fileId) {
-        setActiveFile(null);
-      }
+      setAllFiles((prev) => prev.filter((f) => f._id !== fileId));
+      setOpenFiles((prev) => {
+        const updated = prev.filter((f) => f._id !== fileId);
+        // Switch active tab if the deleted file was active
+        setActiveFile((current) => {
+          if (current?._id === fileId) {
+            return updated.length > 0 ? updated[updated.length - 1] : null;
+          }
+          return current;
+        });
+        return updated;
+      });
     });
 
     socket.on("connect_error", (err) => {
@@ -149,6 +193,31 @@ function EditorPage() {
       socket.disconnect();
     };
   }, [roomId]);
+
+  /* ---------- Workspace Sync (DB) ---------- */
+  useEffect(() => {
+    // Only sync the active file focus to the user's private workspace
+    if (!activeFile) return;
+
+    const syncTimeout = setTimeout(async () => {
+      try {
+        await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/workspace`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+          },
+          body: JSON.stringify({
+            activeFileId: activeFile._id
+          }),
+        });
+      } catch (err) {
+        console.error("Workspace sync error:", err);
+      }
+    }, 2000); // 2 second debounce
+
+    return () => clearTimeout(syncTimeout);
+  }, [activeFile, roomId]);
 
   if (!roomId) return <Navigate to="/" />;
 
@@ -168,14 +237,15 @@ function EditorPage() {
 
       const newFile = await res.json();
       if (res.ok) {
-        setAllFiles((prev) => [...prev, newFile]);
-        setOpenFiles((prev) => [...prev, newFile]);
+        // We no longer update allFiles/openFiles here manually.
+        // We wait for the FILE_CREATED socket event from the server.
         setActiveFile(newFile);
-        socketRef.current.emit("FILE_CREATED", { roomId, file: newFile });
+        toast.success("File created successfully");
       } else {
         toast.error(newFile.message || "Error creating file");
       }
-    } catch {
+    } catch (err) {
+      console.error("Error creating file:", err);
       toast.error("Error creating file");
     }
   };
@@ -187,11 +257,25 @@ function EditorPage() {
     setActiveFile(file);
   };
 
-  const handleTabClose = (fileId) => {
-    const updated = openFiles.filter(f => f._id !== fileId);
-    setOpenFiles(updated);
-    if (activeFile?._id === fileId) {
-      setActiveFile(updated.length > 0 ? updated[updated.length - 1] : null);
+  const handleTabClose = async (fileId) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/files/${fileId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+      });
+
+      if (res.ok) {
+        // We no longer update allFiles/openFiles here manually.
+        // We wait for the FILE_DELETED socket event from the server.
+        toast.success("File deleted successfully");
+      } else {
+        toast.error("Failed to delete file");
+      }
+    } catch (err) {
+      console.error("Error deleting file:", err);
+      toast.error("Error deleting file");
     }
   };
 
@@ -235,8 +319,19 @@ function EditorPage() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      {/* ===== Top bar ===== */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-800 bg-neutral-900">
+      {/* ===== Mobile Top Bar (Mobile Only) ===== */}
+      <MobileTopBar
+        view={view}
+        setView={setView}
+        roomName={roomName}
+        setSidebarOpen={setSidebarOpen}
+        onRun={handleRun}
+        onLeave={() => navigate("/")}
+        isRunning={isRunning}
+      />
+
+      {/* ===== Top bar (Desktop Only) ===== */}
+      <div className="hidden md:flex items-center justify-between px-4 py-2 border-b border-neutral-800 bg-neutral-900">
         <div className="flex items-center gap-4">
           <button
             className="md:hidden z-40 relative"
@@ -300,7 +395,7 @@ function EditorPage() {
       </div>
 
       {/* ===== Main area ===== */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden pt-[92px] md:pt-0">
         {view === "code" && (
           <>
             <TabSystem
