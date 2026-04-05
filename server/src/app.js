@@ -3,6 +3,7 @@ dotenv.config();
 
 import express from "express";
 import cors from "cors";
+import passport, { initialize } from "passport";
 import { connection } from "./config/connect.js";
 
 import authRoutes from "./routes/auth.routes.js";
@@ -10,6 +11,7 @@ import roomRoutes from "./routes/room.routes.js";
 import compileRoutes from "./routes/compile.routes.js";
 
 connection();
+initializingPassport();
 
 const app = express();
 

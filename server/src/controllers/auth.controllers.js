@@ -7,6 +7,7 @@ import {
 } from "../utils/token.js";
 import { getJwtConfig } from "../config/jwt.js";
 import { validatePassword } from "../utils/passwordValidate.js";
+import passport from "passport";
 
 
 

@@ -1,5 +1,6 @@
 import Room from "../models/Room.js";
 import File from "../models/File.js";
+import Workspace from "../models/Workspace.js";
 import { v4 as uuidv4 } from "uuid";
 
 /* ================= GET ALL FILES FOR ROOM ================= */
@@ -22,8 +23,12 @@ export const createFile = async (req, res) => {
     const file = await File.create({
       roomId,
       fileName,
-      fileType: fileType || "file",
+      fileType,
     });
+
+    // Notify room members
+    req.app.get("io").to(roomId).emit("FILE_CREATED", file);
+
     res.status(201).json(file);
   } catch (err) {
     res.status(500).json({ message: "Error creating file" });
@@ -34,12 +39,19 @@ export const createFile = async (req, res) => {
 export const deleteFile = async (req, res) => {
   const { fileId } = req.params;
   try {
-    await File.findByIdAndDelete(fileId);
+    const file = await File.findByIdAndDelete(fileId);
+    if (!file) return res.status(404).json({ message: "File not found" });
+
+    // Notify room members
+    req.app.get("io").to(file.roomId).emit("FILE_DELETED", fileId);
+
     res.json({ message: "File deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: "Error deleting file" });
   }
 };
+
+
 
 /* ================= GET MY ROOMS ================= */
 export const getMyRooms = async (req, res) => {
@@ -73,9 +85,9 @@ export const createRoom = async (req, res) => {
 
   // Create a default 'main.js' file for the room
   await File.create({
-      roomId,
-      fileName: "Main.java",
-      fileType: "file",
+    roomId,
+    fileName: "Main.java",
+    fileType: "file",
   });
 
   res.status(201).json({
@@ -108,4 +120,49 @@ export const joinRoom = async (req, res) => {
     roomId: room.roomId,
     roomName: room.roomName,
   });
+};
+
+/* ================= WORKSPACE (TABS) PERSISTENCE ================= */
+
+export const getWorkspace = async (req, res) => {
+  const { roomId } = req.params;
+  const userId = req.user.userId;
+
+  try {
+    // 1. Get Shared Tabs from Room
+    const room = await Room.findOne({ roomId }).populate({
+      path: "files",
+      options: { sort: { createdAt: 1 } }
+    });
+
+    if (!room) return res.status(404).json({ message: "Room not found" });
+
+    // 2. Get Personal Focus from Workspace
+    let workspace = await Workspace.findOne({ userId, roomId }).populate("activeFile");
+
+    res.json({
+      openFiles: room.files || [],
+      activeFile: workspace?.activeFile || (room.files?.length > 0 ? room.files[0] : null)
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching workspace" });
+  }
+};
+
+export const updateWorkspace = async (req, res) => {
+  const { roomId } = req.params;
+  const userId = req.user.userId;
+  const { activeFileId } = req.body;
+
+  try {
+    const workspace = await Workspace.findOneAndUpdate(
+      { userId, roomId },
+      { activeFile: activeFileId },
+      { upsert: true, new: true }
+    );
+
+    res.json(workspace);
+  } catch (err) {
+    res.status(500).json({ message: "Error updating workspace" });
+  }
 };

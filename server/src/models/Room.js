@@ -29,6 +29,13 @@ const RoomSchema = new mongoose.Schema(
       },
     ],
 
+    files: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "File"
+      }
+    ],
+
     isPrivate: {
       type: Boolean,
       default: false,

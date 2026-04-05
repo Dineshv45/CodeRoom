@@ -14,6 +14,9 @@ const io = new Server(server, {
   cors: { origin: allowedOrigins },
 });
 
+// Attach io to app for access in controllers
+app.set("io", io);
+
 
 initSockets(io);
 

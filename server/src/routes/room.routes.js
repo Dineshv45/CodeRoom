@@ -6,6 +6,8 @@ import {
   getFiles,
   createFile,
   deleteFile,
+  getWorkspace,
+  updateWorkspace,
 } from "../controllers/room.controllers.js";
 import { authMiddleware } from "../middleware/auth.middlewear.js";
 
@@ -20,5 +22,9 @@ router.post("/:roomId/join", authMiddleware, joinRoom);
 router.get("/:roomId/files", authMiddleware, getFiles);
 router.post("/:roomId/files", authMiddleware, createFile);
 router.delete("/files/:fileId", authMiddleware, deleteFile);
+
+/* Workspace (Tabs) */
+router.get("/:roomId/workspace", authMiddleware, getWorkspace);
+router.patch("/:roomId/workspace", authMiddleware, updateWorkspace);
 
 export default router;
