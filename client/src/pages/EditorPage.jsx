@@ -15,6 +15,8 @@ import Editor from "../components/Editor";
 import Chat from "../components/Chat";
 import TabSystem from "../components/TabSystem";
 import MobileTopBar from "../components/mobileTopBar";
+import RoomActionsMenu from "../components/RoomActionsMenu";
+import InviteModal from "../components/InviteModal";
 import { useOutletContext } from "react-router-dom";
 
 function EditorPage() {
@@ -25,8 +27,10 @@ function EditorPage() {
   const socketRef = useRef(null);
   const editorRef = useRef(null);
 
-  const { setOnlineUsers, setAllMembers, setSidebarOpen } = useOutletContext();
+  const { setOnlineUsers, setAllMembers, setSidebarOpen, setActivePanel, openConfirmModal } = useOutletContext();
   const roomName = location.state?.roomName || "Room";
+  const [roomOwner, setRoomOwner] = useState(null);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   const [messages, setMessages] = useState([]);
   const [view, setView] = useState(localStorage.getItem("VIEW") || "code");
@@ -44,11 +48,19 @@ function EditorPage() {
 
   const viewRef = useRef(view);
 
-  const myUsername = useMemo(() => {
+  const myInfo = useMemo(() => {
     const token = localStorage.getItem("accessToken");
-    if (!token) return null;
-    return jwtDecode(token)?.username;
+    if (!token) return { username: null, userId: null };
+    try {
+      const decoded = jwtDecode(token);
+      return { username: decoded.username, userId: decoded.userId };
+    } catch (e) {
+      return { username: null, userId: null };
+    }
   }, []);
+
+  const myUsername = myInfo.username;
+  const myUserId = myInfo.userId;
 
   useEffect(() => {
     viewRef.current = view;
@@ -69,6 +81,7 @@ function EditorPage() {
       const data = await res.json();
 
       if (res.ok) {
+        setRoomOwner(data.owner);
         // 1. Shared Tabs (from Room.files)
         if (currentFiles && currentFiles.length > 0) {
           setOpenFiles(currentFiles);
@@ -185,6 +198,26 @@ function EditorPage() {
     socket.on("ROOM_REFRESH", ({ message }) => {
       toast.success(message || "Room state updated");
       fetchFiles();
+    });
+
+    socket.on("MEMBER_LEFT", ({ username, userId }) => {
+      toast.success(`${username} has left the room`);
+      setAllMembers(prev => prev.filter(m => m.userId !== userId));
+    });
+
+    socket.on("MEMBER_REMOVED", ({ username, userId }) => {
+      if (userId === myUserId) {
+        toast.error("You have been removed from the room");
+        navigate("/");
+      } else {
+        toast.info(`${username} was removed from the room`);
+        setAllMembers(prev => prev.filter(m => m.userId !== userId));
+      }
+    });
+
+    socket.on("ROOM_DELETED", ({ roomName }) => {
+      toast.error(`Room "${roomName}" has been deleted by the owner`);
+      navigate("/");
     });
 
     socket.on("connect_error", (err) => {
@@ -322,6 +355,72 @@ function EditorPage() {
     }
   };
 
+  const handleLeaveRoom = () => {
+    openConfirmModal({
+      title: "Leave Room",
+      message: "Are you sure you want to leave this room? You will need an invite to join back.",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/leave`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+          });
+          if (res.ok) {
+            toast.success("Left room");
+            navigate("/");
+          } else {
+            const data = await res.json();
+            toast.error(data.message || "Failed to leave room");
+          }
+        } catch (err) {
+          toast.error("Error leaving room");
+        }
+      }
+    });
+  };
+
+  const handleDeleteRoom = () => {
+    openConfirmModal({
+      title: "Delete Room",
+      message: "DANGER: This will permanently delete the room and all its files for everyone. This cannot be undone.",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+          });
+          if (res.ok) {
+            toast.success("Room deleted");
+            navigate("/");
+          } else {
+            toast.error("Failed to delete room");
+          }
+        } catch (err) {
+          toast.error("Error deleting room");
+        }
+      }
+    });
+  };
+
+  const handleCopyInvite = () => {
+    const link = `${window.location.origin}/editor/${roomId}`;
+    navigator.clipboard.writeText(link);
+    toast.success("Invite link copied to clipboard");
+  };
+
+  const handleManageUsers = () => {
+    setActivePanel("users");
+    // On mobile, also open the sidebar
+    if (window.innerWidth < 768) {
+      setSidebarOpen(true);
+    }
+    toast.success("Switched to Users panel");
+  };
+
+  const handleAddUser = () => {
+    setIsInviteModalOpen(true);
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* ===== Mobile Top Bar (Mobile Only) ===== */}
@@ -345,6 +444,14 @@ function EditorPage() {
             ☰
           </button>
           <h2 className="text-sm font-medium">{roomName}</h2>
+          <RoomActionsMenu
+            isOwner={roomOwner === myUserId}
+            onLeave={handleLeaveRoom}
+            onDelete={handleDeleteRoom}
+            onCopyInvite={handleCopyInvite}
+            onManageUsers={handleManageUsers}
+            onAddUser={handleAddUser}
+          />
         </div>
 
         <div className="flex items-center gap-2">
@@ -464,6 +571,13 @@ function EditorPage() {
           </div>
         )}
       </div>
+
+      <InviteModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        roomId={roomId}
+        roomName={roomName}
+      />
     </div>
   );
 }

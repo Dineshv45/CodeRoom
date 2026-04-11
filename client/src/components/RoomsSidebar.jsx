@@ -1,9 +1,12 @@
-import { Copy, Settings, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import Avatar from "react-avatar";
 import toast from "react-hot-toast";
 import { useLocation } from "react-router-dom";
+import RoomActionsMenu from "./RoomActionsMenu";
+import { jwtDecode } from "jwt-decode";
+import { useMemo } from "react";
 
-function RoomsSidebar({ rooms, onSelectRoom, onCreate }) {
+function RoomsSidebar({ rooms, onSelectRoom, onCreate, onLeaveRoom, onDeleteRoom, onManageUsers, onAddUser }) {
   const location = useLocation();
   const activeRoomId = location.pathname.startsWith("/editor/")
     ? location.pathname.split("/editor/")[1]
@@ -13,9 +16,17 @@ function RoomsSidebar({ rooms, onSelectRoom, onCreate }) {
     const link = `${window.location.origin}/editor/${roomId}`;
     await navigator.clipboard.writeText(link);
     toast.success("Invite link copied");
-
-
   };
+
+  const currentUserId = useMemo(() => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return null;
+    try {
+      return jwtDecode(token).userId;
+    } catch (e) {
+      return null;
+    }
+  }, []);
 
   return (
     <aside className="h-full w-full bg-neutral-900 flex flex-col">
@@ -73,17 +84,19 @@ function RoomsSidebar({ rooms, onSelectRoom, onCreate }) {
                 </p>
               </div>
 
-              {/* Invite (hover only) */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  copyInvite(room.roomId);
-                }}
-                className="opacity-0 group-hover:opacity-100 transition text-neutral-400 hover:text-white"
-                title="Copy invite link"
-              >
-                <Copy size={16} />
-              </button>
+              <div className="transition-opacity">
+                <RoomActionsMenu
+                  isOwner={room.owner === currentUserId}
+                  onLeave={() => onLeaveRoom(room.roomId)}
+                  onDelete={() => onDeleteRoom(room.roomId)}
+                  onCopyInvite={() => copyInvite(room.roomId)}
+                  onManageUsers={() => {
+                    onSelectRoom(room);
+                    onManageUsers();
+                  }}
+                  onAddUser={() => onAddUser(room)}
+                />
+              </div>
             </div>
           );
         })}

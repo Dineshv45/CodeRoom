@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useLocation, useNavigate, Outlet } from "react-router-dom";
 import toast from "react-hot-toast";
 import { requireAuth } from "../utils/requireAuth";
+import { jwtDecode } from "jwt-decode";
 import RoomsSidebar from "../components/RoomsSidebar";
 import UsersPanel from "../components/UsersPanel";
 import EmptyState from "../components/EmptyState";
 import { Users, User, Settings, X, Home as HomeIcon, LogOut, Route } from "lucide-react";
 import CreateRoomModal from "../components/CreateRoomModal";
 import TimelineSidebar from "../components/TimelineSidebar";
+import ConfirmationModal from "../components/ConfirmationModal";
+import InviteModal from "../components/InviteModal";
 
 function Home() {
   const navigate = useNavigate();
@@ -24,6 +27,39 @@ function Home() {
 
   const token = localStorage.getItem("accessToken");
   const isEditorOpen = location.pathname.startsWith("/editor/");
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => { },
+    type: "danger",
+  });
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [selectedRoomForInvite, setSelectedRoomForInvite] = useState(null);
+
+  const currentUserId = useMemo(() => {
+    if (!token) return null;
+    try {
+      return jwtDecode(token).userId;
+    } catch (e) {
+      return null;
+    }
+  }, [token]);
+
+  const currentRoomId = isEditorOpen ? location.pathname.split("/editor/")[1] : null;
+
+  const openConfirmModal = (config) => {
+    setConfirmModal({
+      isOpen: true,
+      title: config.title || "Are you sure?",
+      message: config.message || "",
+      onConfirm: () => {
+        config.onConfirm();
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+      type: config.type || "danger",
+    });
+  };
 
   const joinRoom = async (roomId) => {
     try {
@@ -91,6 +127,88 @@ function Home() {
     } finally {
       setCreatingRoom(false);
     }
+  };
+
+  const leaveRoomPermanently = (roomId) => {
+    openConfirmModal({
+      title: "Leave Room",
+      message: "Are you sure you want to leave this room? You will need an invite to join back.",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/leave`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            toast.success("Left room");
+            fetchRooms();
+            if (location.pathname.includes(roomId)) {
+              navigate("/");
+            }
+          } else {
+            const data = await res.json();
+            toast.error(data.message || "Failed to leave room");
+          }
+        } catch (err) {
+          toast.error("Error leaving room");
+        }
+      }
+    });
+  };
+
+  const deleteRoomPermanently = (roomId) => {
+    openConfirmModal({
+      title: "Delete Room",
+      message: "DANGER: This will permanently delete the room and all its files for everyone. This cannot be undone.",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            toast.success("Room deleted");
+            fetchRooms();
+            if (location.pathname.includes(roomId)) {
+              navigate("/");
+            }
+          } else {
+            toast.error("Failed to delete room");
+          }
+        } catch (err) {
+          toast.error("Error deleting room");
+        }
+      }
+    });
+  };
+
+  const removeUserPermanently = (targetUserId) => {
+    if (!currentRoomId) return;
+    openConfirmModal({
+      title: "Remove Member",
+      message: "Are you sure you want to remove this user from the room?",
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${currentRoomId}/remove/${targetUserId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            toast.success("User removed");
+          } else {
+            const data = await res.json();
+            toast.error(data.message || "Failed to remove user");
+          }
+        } catch (err) {
+          toast.error("Error removing user");
+        }
+      }
+    });
+  };
+
+  const handleAddUser = (room) => {
+    setSelectedRoomForInvite(room);
+    setIsInviteModalOpen(true);
   };
 
   const fetchRooms = async () => {
@@ -219,11 +337,21 @@ function Home() {
                     setSidebarOpen(false);
                   }}
                   onCreate={createRoom}
+                  onLeaveRoom={leaveRoomPermanently}
+                  onDeleteRoom={deleteRoomPermanently}
+                  onManageUsers={() => setActivePanel("users")}
+                  onAddUser={handleAddUser}
                 />
               )}
 
               {activePanel === "users" && (
-                <UsersPanel onlineUsers={onlineUsers} allMembers={allMembers} />
+                <UsersPanel
+                  onlineUsers={onlineUsers}
+                  allMembers={allMembers}
+                  isOwner={rooms.find(r => r.roomId === currentRoomId)?.owner === currentUserId}
+                  currentUserId={currentUserId}
+                  onRemoveUser={removeUserPermanently}
+                />
               )}
 
               {activePanel === "timeline" && (
@@ -257,7 +385,7 @@ function Home() {
         )}
 
         {isEditorOpen ? (
-          <Outlet context={{ setOnlineUsers, setAllMembers, setSidebarOpen }} />
+          <Outlet context={{ setOnlineUsers, setAllMembers, setSidebarOpen, setActivePanel, openConfirmModal }} />
         ) : (
           <EmptyState onCreate={createRoom} onJoin={joinRoom} />
         )}
@@ -266,6 +394,24 @@ function Home() {
         <CreateRoomModal
           onClose={() => setShowCreateModal(false)}
           onCreate={createRoom}
+        />
+      )}
+
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        type={confirmModal.type}
+      />
+
+      {isInviteModalOpen && selectedRoomForInvite && (
+        <InviteModal
+          isOpen={isInviteModalOpen}
+          onClose={() => setIsInviteModalOpen(false)}
+          roomId={selectedRoomForInvite.roomId}
+          roomName={selectedRoomForInvite.roomName}
         />
       )}
     </div>

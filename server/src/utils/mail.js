@@ -12,14 +12,29 @@ export const sendVerificationMail = async (email, token) =>{
     const verificationUrl = `${process.env.BACKEND_URL}/api/users/verify-email/${token}`;
 
     await transporter.sendMail({
-        from:"'CodeRoom' <${process.env.EMAIL_USER}>",
+        from: `"CodeRoom" <${process.env.EMAIL_USER}>`,
         to:email,
         subject:"Verify Your CodeRoom Account",
         html:`
-        <h2>Welcome to CodeRoom 🚀</h2>
+        <h2>Welcome to CodeRoom </h2>
         <p>Please verify your email by clicking the link below:</p>
         <a href="${verificationUrl}">${verificationUrl}</a>
         <p>This link expires in 24 hours.</p>
         `
+    })
+}
+
+export const sendInviteMail = async (email, link, roomName) => {
+    await transporter.sendMail({
+        from: `"${roomName}" <${process.env.EMAIL_USER}>`,
+        to:email,
+        subject:`You've been Invited to ${roomName}`,
+        html:
+        `<h2>You're Invited to ${roomName} from CodeRoom</h2>
+        <p>Click on the link below to accept invite and join the room</p>
+        <a href = "${link}">${link}</a>
+        <p>This link expires in 24 hours.</p>
+        `
+
     })
 }

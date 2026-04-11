@@ -2,6 +2,7 @@ import Room from "../models/Room.js";
 import File from "../models/File.js";
 import Workspace from "../models/Workspace.js";
 import { v4 as uuidv4 } from "uuid";
+import { sendInviteMail } from "../utils/mail.js";
 
 /* ================= GET ALL FILES FOR ROOM ================= */
 export const getFiles = async (req, res) => {
@@ -123,10 +124,65 @@ export const joinRoom = async (req, res) => {
     res.json({
       roomId: room.roomId,
       roomName: room.roomName,
-      owner: room.owner,
+      owner: room.owner.toString(),
     });
-  }catch(err){
+  } catch (err) {
     res.status(500).json({ message: "Error joining room" });
+  }
+};
+
+/* ================= LEAVE ROOM ================= */
+export const leaveRoom = async (req, res) => {
+  const { roomId } = req.params;
+  const userId = req.user.userId;
+
+  try {
+    const room = await Room.findOne({ roomId });
+    if (!room) return res.status(404).json({ message: "Room not found" });
+
+    // Prevent owner from leaving (must delete or transfer)
+    if (room.owner.toString() === userId) {
+      return res.status(400).json({ message: "Owners cannot leave the room. Use Delete instead." });
+    }
+
+    await Room.findOneAndUpdate({ roomId }, { $pull: { members: userId } });
+
+    // Get username for notification
+    const username = req.user.username;
+    req.app.get("io").to(roomId).emit("MEMBER_LEFT", { userId, username, roomId });
+
+    res.json({ message: "Left room" });
+  } catch (err) {
+    res.status(500).json({ message: "Error leaving room" });
+  }
+};
+
+/* ================= DELETE ROOM ================= */
+export const deleteRoom = async (req, res) => {
+  const { roomId } = req.params;
+  const userId = req.user.userId;
+
+  try {
+    const room = await Room.findOne({ roomId });
+    if (!room) return res.status(404).json({ message: "Room not found" });
+
+    if (room.owner.toString() !== userId) {
+      return res.status(403).json({ message: "Only the owner can delete this room" });
+    }
+
+    // 1. Delete associated data
+    await File.deleteMany({ roomId });
+    await Workspace.deleteMany({ roomId });
+
+    // 2. Delete room
+    await Room.findOneAndDelete({ roomId });
+
+    // 3. Notify everyone
+    req.app.get("io").to(roomId).emit("ROOM_DELETED", { roomId, roomName: room.roomName });
+
+    res.json({ message: "Room deleted" });
+  } catch (err) {
+    res.status(500).json({ message: "Error deleting room" });
   }
 };
 
@@ -150,7 +206,8 @@ export const joinRoom = async (req, res) => {
 
       res.json({
         openFiles: room.files || [],
-        activeFile: workspace?.activeFile || (room.files?.length > 0 ? room.files[0] : null)
+        activeFile: workspace?.activeFile || (room.files?.length > 0 ? room.files[0] : null),
+        owner: room.owner.toString()
       });
     } catch (err) {
       res.status(500).json({ message: "Error fetching workspace" });
@@ -174,3 +231,63 @@ export const joinRoom = async (req, res) => {
       res.status(500).json({ message: "Error updating workspace" });
     }
   };
+
+
+  //         Remove User
+  export const removeUser = async (req, res) => {
+    const { roomId, userId } = req.params;
+    const ownerId = req.user.userId;
+
+    try {
+      const room = await Room.findOne({ roomId }).populate("members", "username");
+
+      if (!room) {
+        return res.status(404).json({ message: "Room not found" });
+      }
+
+      if (room.owner.toString() !== ownerId) {
+        return res.status(403).json({ message: "You are not the owner of this room" });
+      }
+
+      const userToRemove = room.members.find(
+        (member) => member._id.toString() === userId
+      );
+
+      if (!userToRemove) {
+        return res.status(404).json({ message: "User not found in room" });
+      }
+
+      room.members = room.members.filter(
+        (member) => member._id.toString() !== userId
+      );
+      await room.save();
+
+      req.app.get("io").to(roomId).emit("MEMBER_REMOVED", { 
+        userId, 
+        username: userToRemove.username, 
+        roomId 
+      });
+
+      res.json({ message: "User removed successfully" });
+    } catch (err) {
+      res.status(500).json({ message: "Error removing user" });
+    }
+  };
+
+  //     send Invite Email
+
+  export const sendInviteEmail = async (req, res) => {
+    const { roomId } = req.params;
+    const { email, link } = req.body;
+    const userId = req.user.userId;
+
+    try {
+      const room = await Room.findOne({ roomId, owner: userId });
+      if(!room) return res.status(404).json({ message: "Room not found" });
+
+      await sendInviteMail(email, link, room.roomName);
+      res.json({ message: "Invite sent successfully" });
+    } catch (err) {
+      res.status(500).json({ message: "Error sending invite" });
+    }
+  }

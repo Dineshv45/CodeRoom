@@ -1,9 +1,9 @@
 import { useState } from "react";
 import Avatar from "react-avatar";
-import { Users, Circle } from "lucide-react";
+import { Users, Circle, UserMinus } from "lucide-react";
 import { getAvatarColor } from "./User";
 
-function UsersPanel({ onlineUsers = [], allMembers = [] }) {
+function UsersPanel({ onlineUsers = [], allMembers = [], isOwner, currentUserId, onRemoveUser }) {
   const [view, setView] = useState("online");
 
   const onlineIds = new Set(onlineUsers.map((u) => u.userId));
@@ -81,7 +81,20 @@ function UsersPanel({ onlineUsers = [], allMembers = [] }) {
                 </p>
               </div>
 
-              {!isOnline && (
+              {isOwner && user.userId !== currentUserId && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveUser(user.userId);
+                  }}
+                  className="flex items-center justify-center p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                  title="Remove from room"
+                >
+                  <UserMinus size={14} />
+                </button>
+              )}
+
+              {!isOnline && !isOwner && (
                 <div className="w-1.5 h-1.5 bg-neutral-700 rounded-full group-hover:bg-neutral-500 transition-colors" />
               )}
             </div>
