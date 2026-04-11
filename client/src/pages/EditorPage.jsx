@@ -182,6 +182,11 @@ function EditorPage() {
       });
     });
 
+    socket.on("ROOM_REFRESH", ({ message }) => {
+      toast.success(message || "Room state updated");
+      fetchFiles();
+    });
+
     socket.on("connect_error", (err) => {
       toast.error(`Session Expired ${err}`);
       localStorage.clear();

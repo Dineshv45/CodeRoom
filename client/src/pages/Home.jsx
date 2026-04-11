@@ -5,8 +5,9 @@ import { requireAuth } from "../utils/requireAuth";
 import RoomsSidebar from "../components/RoomsSidebar";
 import UsersPanel from "../components/UsersPanel";
 import EmptyState from "../components/EmptyState";
-import { Users, User, Settings, X, Home as HomeIcon, LogOut } from "lucide-react";
+import { Users, User, Settings, X, Home as HomeIcon, LogOut, Route } from "lucide-react";
 import CreateRoomModal from "../components/CreateRoomModal";
+import TimelineSidebar from "../components/TimelineSidebar";
 
 function Home() {
   const navigate = useNavigate();
@@ -79,7 +80,7 @@ function Home() {
 
       const room = await res.json();
       toast.success("Room created successfully!");
-      
+
       await fetchRooms();
       navigate(`/editor/${room.roomId}`, {
         state: { roomName: room.roomName },
@@ -142,21 +143,32 @@ function Home() {
                 <button
                   onClick={() => setActivePanel("rooms")}
                   className={`p-2 rounded ${activePanel === "rooms"
-                      ? "bg-neutral-800"
-                      : "hover:bg-neutral-800"
+                    ? "bg-neutral-800"
+                    : "hover:bg-neutral-800"
                     }`}
                 >
                   <HomeIcon size={20} />
                 </button>
 
+
                 <button
                   onClick={() => setActivePanel("users")}
                   className={`p-2 rounded ${activePanel === "users"
-                      ? "bg-neutral-800"
-                      : "hover:bg-neutral-800"
+                    ? "bg-neutral-800"
+                    : "hover:bg-neutral-800"
                     }`}
                 >
                   <Users size={20} />
+                </button>
+
+                <button
+                  onClick={() => setActivePanel("timeline")}
+                  className={`p-2 rounded ${activePanel === "timeline"
+                    ? "bg-neutral-800"
+                    : "hover:bg-neutral-800"
+                    }`}
+                >
+                  <Route size={20} />
                 </button>
               </div>
 
@@ -178,8 +190,8 @@ function Home() {
                 onClick={() => setShowLogout(!showLogout)}
                 className={`p-2 rounded hover:bg-neutral-800 transition-all duration-300 ${showLogout ? "bg-neutral-800 text-blue-400 shadow-lg shadow-blue-500/20" : ""}`}
               >
-                <Settings 
-                  size={20} 
+                <Settings
+                  size={20}
                   className={`transition-transform duration-500 ${showLogout ? "rotate-180" : "rotate-0"}`}
                 />
               </button>
@@ -212,6 +224,10 @@ function Home() {
 
               {activePanel === "users" && (
                 <UsersPanel onlineUsers={onlineUsers} allMembers={allMembers} />
+              )}
+
+              {activePanel === "timeline" && (
+                <TimelineSidebar />
               )}
             </div>
           </div>

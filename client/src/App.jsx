@@ -9,9 +9,11 @@ import VerifySuccess from "./pages/VerifySuccess.jsx";
 import VerifyError from "./pages/VerifyError.jsx";
 import { Toaster } from "react-hot-toast";
 
+import { TimelineProvider } from "./context/TimelineContext.jsx";
+
 function App() {
   return (
-    <>
+   <>
       <div>
         <Toaster
           position="top-right"
@@ -24,7 +26,9 @@ function App() {
           }}
         />
       </div>
+
       <BrowserRouter>
+      <TimelineProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -35,8 +39,10 @@ function App() {
             <Route path="editor/:roomId" element={<EditorPage />} />
           </Route>
         </Routes>
+        </TimelineProvider>
       </BrowserRouter>
-    </>
+
+      </>
   );
 }
 

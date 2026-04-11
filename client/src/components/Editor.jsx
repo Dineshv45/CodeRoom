@@ -130,6 +130,7 @@ const Editor = forwardRef(
       <div ref={editorContainerRef} className="w-full h-full overflow-hidden" />
     );
   },
+  
 );
 
 export default Editor;

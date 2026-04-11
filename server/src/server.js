@@ -17,7 +17,7 @@ const io = new Server(server, {
 app.set("io", io);
 
 
-initSockets(io);
+initSockets(io, app);
 
 
 server.listen(PORT, "0.0.0.0", () => {

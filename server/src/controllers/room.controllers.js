@@ -56,14 +56,17 @@ export const deleteFile = async (req, res) => {
 /* ================= GET MY ROOMS ================= */
 export const getMyRooms = async (req, res) => {
   const userId = req.user.userId;
-
+try{
   const rooms = await Room.find({
     members: userId,
   })
-    .select("roomId roomName updatedAt")
+    .select("roomId roomName owner updatedAt")
     .sort({ updatedAt: -1 });
 
   res.json(rooms);
+} catch (err) {
+  res.status(500).json({ message: "Error fetching rooms" });
+}
 };
 
 /* ================= CREATE ROOM ================= */
@@ -101,68 +104,73 @@ export const joinRoom = async (req, res) => {
   const { roomId } = req.params;
   const userId = req.user.userId;
 
-  const room = await Room.findOne({ roomId });
-
-  if (!room) {
-    return res.status(404).json({ message: "Room not found" });
-  }
-
-  const alreadyMember = room.members.some(
-    (member) => member.toString() === userId
-  );
-
-  if (!alreadyMember) {
-    room.members.push(userId);
-    await room.save();
-  }
-
-  res.json({
-    roomId: room.roomId,
-    roomName: room.roomName,
-  });
-};
-
-/* ================= WORKSPACE (TABS) PERSISTENCE ================= */
-
-export const getWorkspace = async (req, res) => {
-  const { roomId } = req.params;
-  const userId = req.user.userId;
-
   try {
-    // 1. Get Shared Tabs from Room
-    const room = await Room.findOne({ roomId }).populate({
-      path: "files",
-      options: { sort: { createdAt: 1 } }
-    });
+    const room = await Room.findOne({ roomId });
 
-    if (!room) return res.status(404).json({ message: "Room not found" });
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
 
-    // 2. Get Personal Focus from Workspace
-    let workspace = await Workspace.findOne({ userId, roomId }).populate("activeFile");
-
-    res.json({
-      openFiles: room.files || [],
-      activeFile: workspace?.activeFile || (room.files?.length > 0 ? room.files[0] : null)
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching workspace" });
-  }
-};
-
-export const updateWorkspace = async (req, res) => {
-  const { roomId } = req.params;
-  const userId = req.user.userId;
-  const { activeFileId } = req.body;
-
-  try {
-    const workspace = await Workspace.findOneAndUpdate(
-      { userId, roomId },
-      { activeFile: activeFileId },
-      { upsert: true, new: true }
+    const alreadyMember = room.members.some(
+      (member) => member.toString() === userId
     );
 
-    res.json(workspace);
-  } catch (err) {
-    res.status(500).json({ message: "Error updating workspace" });
+    if (!alreadyMember) {
+      room.members.push(userId);
+      await room.save();
+    }
+
+    res.json({
+      roomId: room.roomId,
+      roomName: room.roomName,
+      owner: room.owner,
+    });
+  }catch(err){
+    res.status(500).json({ message: "Error joining room" });
   }
 };
+
+  /* ================= WORKSPACE (TABS) PERSISTENCE ================= */
+
+  export const getWorkspace = async (req, res) => {
+    const { roomId } = req.params;
+    const userId = req.user.userId;
+
+    try {
+      // 1. Get Shared Tabs from Room
+      const room = await Room.findOne({ roomId }).populate({
+        path: "files",
+        options: { sort: { createdAt: 1 } }
+      });
+
+      if (!room) return res.status(404).json({ message: "Room not found" });
+
+      // 2. Get Personal Focus from Workspace
+      let workspace = await Workspace.findOne({ userId, roomId }).populate("activeFile");
+
+      res.json({
+        openFiles: room.files || [],
+        activeFile: workspace?.activeFile || (room.files?.length > 0 ? room.files[0] : null)
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Error fetching workspace" });
+    }
+  };
+
+  export const updateWorkspace = async (req, res) => {
+    const { roomId } = req.params;
+    const userId = req.user.userId;
+    const { activeFileId } = req.body;
+
+    try {
+      const workspace = await Workspace.findOneAndUpdate(
+        { userId, roomId },
+        { activeFile: activeFileId },
+        { upsert: true, new: true }
+      );
+
+      res.json(workspace);
+    } catch (err) {
+      res.status(500).json({ message: "Error updating workspace" });
+    }
+  };
