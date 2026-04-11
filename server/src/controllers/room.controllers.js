@@ -286,8 +286,14 @@ export const deleteRoom = async (req, res) => {
       if(!room) return res.status(404).json({ message: "Room not found" });
 
       await sendInviteMail(email, link, room.roomName);
+      console.log(`[SUCCESS] Invite email sent to ${email} for room ${room.roomName}`);
       res.json({ message: "Invite sent successfully" });
     } catch (err) {
-      res.status(500).json({ message: "Error sending invite" });
+      console.error(`[ERROR] Failed to send invite email to ${email}:`, err.message);
+      res.status(500).json({ 
+        message: "Error sending invite", 
+        error: err.message,
+        tip: err.message.includes("Invalid login") ? "Check your Google App Password" : undefined
+      });
     }
   }

@@ -2,7 +2,8 @@ import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: 465,
+    port: process.env.EMAIL_PORT || 587, // Use ENV or default to 587
+    secure: process.env.EMAIL_PORT == 465, // Use SSL only if port is 465
     secure: true, // Use SSL
     auth: {
         user: process.env.EMAIL_USER,
@@ -58,9 +59,9 @@ export const sendInviteMail = async (email, link, roomName) => {
             </div>
             `
         });
-        // console.log(`[SUCCESS] Invite email sent to ${email} for room ${roomName}`);
+        console.log(`[SUCCESS] Invite email sent to ${email} for room ${roomName}`);
     } catch (error) {
-        // console.error(`[ERROR] Failed to send invite email to ${email}:`, error.message);
+        console.error(`[ERROR] Failed to send invite email to ${email}:`, error.message);
         throw error;
     }
 }
