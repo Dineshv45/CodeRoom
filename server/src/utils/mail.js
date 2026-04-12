@@ -1,14 +1,28 @@
 import nodemailer from "nodemailer";
 
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS?.replace(/\s+/g, '');
+
+if (!EMAIL_USER || !EMAIL_PASS) {
+    console.warn("[MAIL] Warning: EMAIL_USER or EMAIL_PASS not set. Email functionality will fail.");
+}
+
 const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: process.env.EMAIL_PORT || 587, // Use ENV or default to 587
-    secure: process.env.EMAIL_PORT == 465, // Use SSL only if port is 465
-    secure: true, // Use SSL
+    service: "gmail",
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        user: EMAIL_USER,
+        pass: EMAIL_PASS
     },
+});
+
+// Verify connection configuration
+transporter.verify(function (error, success) {
+  if (error) {
+    console.error("[MAIL] Transporter verification failed:", error.message);
+    console.error("TIP: If you're in production, make sure you've added EMAIL_USER and EMAIL_PASS to your dashboard.");
+  } else {
+    console.log("[MAIL] Server is ready to take our messages");
+  }
 });
 
 export const sendVerificationMail = async (email, token) => {
