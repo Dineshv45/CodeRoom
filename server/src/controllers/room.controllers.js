@@ -57,17 +57,17 @@ export const deleteFile = async (req, res) => {
 /* ================= GET MY ROOMS ================= */
 export const getMyRooms = async (req, res) => {
   const userId = req.user.userId;
-try{
-  const rooms = await Room.find({
-    members: userId,
-  })
-    .select("roomId roomName owner updatedAt")
-    .sort({ updatedAt: -1 });
+  try {
+    const rooms = await Room.find({
+      members: userId,
+    })
+      .select("roomId roomName owner updatedAt")
+      .sort({ updatedAt: -1 });
 
-  res.json(rooms);
-} catch (err) {
-  res.status(500).json({ message: "Error fetching rooms" });
-}
+    res.json(rooms);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching rooms" });
+  }
 };
 
 /* ================= CREATE ROOM ================= */
@@ -186,114 +186,129 @@ export const deleteRoom = async (req, res) => {
   }
 };
 
-  /* ================= WORKSPACE (TABS) PERSISTENCE ================= */
+/* ================= WORKSPACE (TABS) PERSISTENCE ================= */
 
-  export const getWorkspace = async (req, res) => {
-    const { roomId } = req.params;
-    const userId = req.user.userId;
+export const getWorkspace = async (req, res) => {
+  const { roomId } = req.params;
+  const userId = req.user.userId;
 
-    try {
-      // 1. Get Shared Tabs from Room
-      const room = await Room.findOne({ roomId }).populate({
-        path: "files",
-        options: { sort: { createdAt: 1 } }
-      });
+  try {
+    // 1. Get Shared Tabs from Room
+    const room = await Room.findOne({ roomId }).populate({
+      path: "files",
+      options: { sort: { createdAt: 1 } }
+    });
 
-      if (!room) return res.status(404).json({ message: "Room not found" });
+    if (!room) return res.status(404).json({ message: "Room not found" });
 
-      // 2. Get Personal Focus from Workspace
-      let workspace = await Workspace.findOne({ userId, roomId }).populate("activeFile");
+    // 2. Get Personal Focus from Workspace
+    let workspace = await Workspace.findOne({ userId, roomId }).populate("activeFile");
 
-      res.json({
-        openFiles: room.files || [],
-        activeFile: workspace?.activeFile || (room.files?.length > 0 ? room.files[0] : null),
-        owner: room.owner.toString()
-      });
-    } catch (err) {
-      res.status(500).json({ message: "Error fetching workspace" });
-    }
-  };
-
-  export const updateWorkspace = async (req, res) => {
-    const { roomId } = req.params;
-    const userId = req.user.userId;
-    const { activeFileId } = req.body;
-
-    try {
-      const workspace = await Workspace.findOneAndUpdate(
-        { userId, roomId },
-        { activeFile: activeFileId },
-        { upsert: true, new: true }
-      );
-
-      res.json(workspace);
-    } catch (err) {
-      res.status(500).json({ message: "Error updating workspace" });
-    }
-  };
-
-
-  //         Remove User
-  export const removeUser = async (req, res) => {
-    const { roomId, userId } = req.params;
-    const ownerId = req.user.userId;
-
-    try {
-      const room = await Room.findOne({ roomId }).populate("members", "username");
-
-      if (!room) {
-        return res.status(404).json({ message: "Room not found" });
-      }
-
-      if (room.owner.toString() !== ownerId) {
-        return res.status(403).json({ message: "You are not the owner of this room" });
-      }
-
-      const userToRemove = room.members.find(
-        (member) => member._id.toString() === userId
-      );
-
-      if (!userToRemove) {
-        return res.status(404).json({ message: "User not found in room" });
-      }
-
-      room.members = room.members.filter(
-        (member) => member._id.toString() !== userId
-      );
-      await room.save();
-
-      req.app.get("io").to(roomId).emit("MEMBER_REMOVED", { 
-        userId, 
-        username: userToRemove.username, 
-        roomId 
-      });
-
-      res.json({ message: "User removed successfully" });
-    } catch (err) {
-      res.status(500).json({ message: "Error removing user" });
-    }
-  };
-
-  //     send Invite Email
-
-  export const sendInviteEmail = async (req, res) => {
-    const { roomId } = req.params;
-    const { email, link } = req.body;
-    const userId = req.user.userId;
-
-    try {
-      const room = await Room.findOne({ roomId, owner: userId });
-      if(!room) return res.status(404).json({ message: "Room not found" });
-
-      await sendInviteMail(email, link, room.roomName);
-      console.log(`[SUCCESS] Invite email sent to ${email} for room ${room.roomName}`);
-      res.json({ message: "Invite sent successfully" });
-    } catch (err) {
-      console.error(`[ERROR] Failed to send invite email to ${email}:`, err.message);
-      res.status(500).json({ 
-        message: "Error sending invite", 
-        error: err.message,
-        tip: err.message.includes("Invalid login") ? "Check your Google App Password" : undefined
-      });
-    }
+    res.json({
+      openFiles: room.files || [],
+      activeFile: workspace?.activeFile || (room.files?.length > 0 ? room.files[0] : null),
+      owner: room.owner.toString()
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching workspace" });
   }
+};
+
+export const updateWorkspace = async (req, res) => {
+  const { roomId } = req.params;
+  const userId = req.user.userId;
+  const { activeFileId } = req.body;
+
+  try {
+    const workspace = await Workspace.findOneAndUpdate(
+      { userId, roomId },
+      { activeFile: activeFileId },
+      { upsert: true, new: true }
+    );
+
+    res.json(workspace);
+  } catch (err) {
+    res.status(500).json({ message: "Error updating workspace" });
+  }
+};
+
+
+//         Remove User
+export const removeUser = async (req, res) => {
+  const { roomId, userId } = req.params;
+  const ownerId = req.user.userId;
+
+  try {
+    const room = await Room.findOne({ roomId }).populate("members", "username");
+
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    if (room.owner.toString() !== ownerId) {
+      return res.status(403).json({ message: "You are not the owner of this room" });
+    }
+
+    const userToRemove = room.members.find(
+      (member) => member._id.toString() === userId
+    );
+
+    if (!userToRemove) {
+      return res.status(404).json({ message: "User not found in room" });
+    }
+
+    room.members = room.members.filter(
+      (member) => member._id.toString() !== userId
+    );
+    await room.save();
+
+    req.app.get("io").to(roomId).emit("MEMBER_REMOVED", {
+      userId,
+      username: userToRemove.username,
+      roomId
+    });
+
+    res.json({ message: "User removed successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Error removing user" });
+  }
+};
+
+//     send Invite Email
+
+export const sendInviteEmail = async (req, res) => {
+  const { roomId } = req.params;
+  const { email, link } = req.body;
+  const userId = req.user.userId;
+
+  try {
+    const room = await Room.findOne({ roomId, owner: userId });
+    if (!room) return res.status(404).json({ message: "Room not found" });
+
+    await sendInviteMail(email, link, room.roomName);
+    console.log(`[SUCCESS] Invite email sent to ${email} for room ${room.roomName}`);
+    res.json({ message: "Invite sent successfully" });
+  } catch (err) {
+    console.error("[INVITE ROUTE ERROR FULL]", {
+      message: err.message,
+      code: err.code,
+      command: err.command,
+      response: err.response,
+      stack: err.stack
+    });
+
+    res.status(500).json({
+      message: "Error sending invite",
+      error: err.message,
+      code: err.code,
+      command: err.command,
+      response: err.response,
+      tip:
+        err.code === "ETIMEDOUT" || err.code === "ECONNECTION"
+          ? "SMTP is likely blocked by Render free tier"
+          : err.message.includes("Invalid login")
+            ? "Check Gmail App Password"
+            : undefined
+    });
+  }
+}

@@ -8,21 +8,21 @@ if (!EMAIL_USER || !EMAIL_PASS) {
 }
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: Number(process.env.EMAIL_PORT) || 465,
-  secure: true,
-  auth: {
-    user: EMAIL_USER,
-    pass: EMAIL_PASS
-  },
-  logger: true,
-  debug: true,
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
-  tls: {
-    rejectUnauthorized: false
-  }
+    host: "smtp.gmail.com",
+    port: Number(process.env.EMAIL_PORT) || 465,
+    secure: true,
+    auth: {
+        user: EMAIL_USER,
+        pass: EMAIL_PASS
+    },
+    logger: true,
+    debug: true,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
+    tls: {
+        rejectUnauthorized: false
+    }
 });
 
 // Verify connection configuration
@@ -59,7 +59,13 @@ export const sendVerificationMail = async (email, token) => {
         });
         // console.log(`[SUCCESS] Verification email sent to ${email}`);
     } catch (error) {
-        console.error(`[ERROR] Failed to send verification email to ${email}:`, error.message);
+        console.error("[INVITE MAIL ERROR FULL]", {
+            message: error.message,
+            code: error.code,
+            command: error.command,
+            response: error.response,
+            stack: error.stack
+        });
         if (error.message.includes('Invalid login')) {
             console.error("TIP: This usually means you need to use a Google App Password, not your regular password.");
         }
