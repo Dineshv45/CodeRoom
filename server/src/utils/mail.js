@@ -8,29 +8,39 @@ if (!EMAIL_USER || !EMAIL_PASS) {
 }
 
 const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: EMAIL_USER,
-        pass: EMAIL_PASS
-    },
+  host: "smtp.gmail.com",
+  port: Number(process.env.EMAIL_PORT) || 465,
+  secure: true,
+  auth: {
+    user: EMAIL_USER,
+    pass: EMAIL_PASS
+  },
+  logger: true,
+  debug: true,
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
+  tls: {
+    rejectUnauthorized: false
+  }
 });
 
 // Verify connection configuration
 transporter.verify(function (error, success) {
-  if (error) {
-    console.error("[MAIL] Transporter verification failed:", error.message);
-    console.error("TIP: If you're in production, make sure you've added EMAIL_USER and EMAIL_PASS to your dashboard.");
-  } else {
-    console.log("[MAIL] Server is ready to take our messages");
-  }
+    if (error) {
+        console.error("[MAIL] Transporter verification failed:", error.message);
+        console.error("TIP: If you're in production, make sure you've added EMAIL_USER and EMAIL_PASS to your dashboard.");
+    } else {
+        console.log("[MAIL] Server is ready to take our messages");
+    }
 });
 
 export const sendVerificationMail = async (email, token) => {
     try {
-        const backendUrl = process.env.BACKEND_URL 
-            ? process.env.BACKEND_URL.replace(/\/$/, '') 
+        const backendUrl = process.env.BACKEND_URL
+            ? process.env.BACKEND_URL.replace(/\/$/, '')
             : "http://localhost:3000";
-            
+
         const verificationUrl = `${backendUrl}/api/users/verify-email/${token}`;
 
         await transporter.sendMail({
