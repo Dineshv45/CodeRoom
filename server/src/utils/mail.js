@@ -7,10 +7,11 @@ if (!EMAIL_USER || !EMAIL_PASS) {
     console.warn("[MAIL] Warning: EMAIL_USER or EMAIL_PASS not set. Email functionality will fail.");
 }
 
+const port = Number(process.env.EMAIL_PORT) || 465;
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: Number(process.env.EMAIL_PORT) || 465,
-    secure: true,
+    port: port,
+    secure: port === 465, // true for 465, false for 587
     auth: {
         user: EMAIL_USER,
         pass: EMAIL_PASS
@@ -59,13 +60,7 @@ export const sendVerificationMail = async (email, token) => {
         });
         // console.log(`[SUCCESS] Verification email sent to ${email}`);
     } catch (error) {
-        console.error("[INVITE MAIL ERROR FULL]", {
-            message: error.message,
-            code: error.code,
-            command: error.command,
-            response: error.response,
-            stack: error.stack
-        });
+        console.error(`[ERROR] Failed to send verification email to ${email}:`, error.message);
         if (error.message.includes('Invalid login')) {
             console.error("TIP: This usually means you need to use a Google App Password, not your regular password.");
         }
