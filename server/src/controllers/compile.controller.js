@@ -25,7 +25,9 @@ export const compileCode = async (req, res) => {
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "X-RapidAPI-Key": process.env.JUDGE0_API_KEY,
+          "X-RapidAPI-Host": "ce.judge0.com"
         },
         body: JSON.stringify({
           language_id,

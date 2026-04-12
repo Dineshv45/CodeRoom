@@ -1,5 +1,6 @@
 import Room from "../models/Room.js";
 import File from "../models/File.js";
+import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
 import { v4 as uuidv4 } from "uuid";
 import { sendInviteMail } from "../utils/mail.js";
@@ -274,8 +275,6 @@ export const deleteRoom = async (req, res) => {
     }
   };
 
-  //     send Invite Email
-
   export const sendInviteEmail = async (req, res) => {
     const { roomId } = req.params;
     const { email, link } = req.body;
@@ -285,8 +284,24 @@ export const deleteRoom = async (req, res) => {
       const room = await Room.findOne({ roomId, owner: userId });
       if(!room) return res.status(404).json({ message: "Room not found" });
 
+      // 1. Check if user exists in our system
+      const invitedUser = await User.findOne({ email });
+
+      if (invitedUser) {
+        // 2. Safely check if they are already a member
+        const isAlreadyMember = room.members.some(
+          (m) => m.toString() === invitedUser._id.toString()
+        );
+
+        if (!isAlreadyMember) {
+          room.members.push(invitedUser._id);
+          await room.save();
+        }
+      }
+
+      // 3. ALWAYS send the email (even if they aren't registered yet)
       await sendInviteMail(email, link, room.roomName);
-      console.log(`[SUCCESS] Invite email sent to ${email} for room ${room.roomName}`);
+      
       res.json({ message: "Invite sent successfully" });
     } catch (err) {
       console.error(`[ERROR] Failed to send invite email to ${email}:`, err.message);

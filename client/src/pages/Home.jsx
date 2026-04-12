@@ -385,7 +385,7 @@ function Home() {
         )}
 
         {isEditorOpen ? (
-          <Outlet context={{ setOnlineUsers, setAllMembers, setSidebarOpen, setActivePanel, openConfirmModal }} />
+          <Outlet context={{ setOnlineUsers, setAllMembers, setSidebarOpen, setActivePanel, openConfirmModal, joinRoom }} />
         ) : (
           <EmptyState onCreate={createRoom} onJoin={joinRoom} />
         )}

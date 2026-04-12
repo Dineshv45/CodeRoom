@@ -27,7 +27,7 @@ function EditorPage() {
   const socketRef = useRef(null);
   const editorRef = useRef(null);
 
-  const { setOnlineUsers, setAllMembers, setSidebarOpen, setActivePanel, openConfirmModal } = useOutletContext();
+  const { setOnlineUsers, setAllMembers, setSidebarOpen, setActivePanel, openConfirmModal , joinRoom} = useOutletContext();
   const roomName = location.state?.roomName || "Room";
   const [roomOwner, setRoomOwner] = useState(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
