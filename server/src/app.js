@@ -3,14 +3,12 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import passport from "./config/passportConfig.js";
-import { connection } from "./config/connect.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import roomRoutes from "./routes/room.routes.js";
 import compileRoutes from "./routes/compile.routes.js";
 import timelineRoutes from "./routes/timeline.routes.js";
 
-connection();
 
 const app = express();
 app.use(passport.initialize());

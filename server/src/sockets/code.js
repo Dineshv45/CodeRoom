@@ -3,6 +3,7 @@ import File from "../models/File.js";
 
 // 1. Storage for pending saves
 let saveTimeouts = new Map();
+let lastSavedAt = new Map();
 
 /**
  * Handles Yjs persistence using MongoDB for individual files.
@@ -17,10 +18,13 @@ export default function initYjsPersistence(ysocketio) {
 
     try {
       const dbDoc = await File.findById(fileId).lean();
-      if (dbDoc && dbDoc.binaryState && dbDoc.binaryState.byteLength > 2) {
+      const rawBuffer = dbDoc?.binaryState?.buffer || dbDoc?.binaryState;
+      const byteLength = rawBuffer?.length || 0;
+
+      if (byteLength > 2) {
         try {
           // IMPORTANT: Buffer (Node) to Uint8Array (Yjs) conversion
-          const uint8 = new Uint8Array(dbDoc.binaryState);
+          const uint8 = new Uint8Array(rawBuffer);
           Y.applyUpdate(doc, uint8);
           console.log(`[Yjs] Initial Load: Success for ${fileId} (${uint8.length} bytes)`);
         } catch (updateErr) {
@@ -35,38 +39,58 @@ export default function initYjsPersistence(ysocketio) {
     }
   });
 
-  // 2. Debounced Saving to MongoDB (Inactivity for 3 seconds)
+
+
+
+  // 2. Immediate Saving to MongoDB (Testing logic)
   ysocketio.on("document-update", async (doc, update) => {
     const fileId = doc.name;
     if (fileId.length !== 24) return;
 
-    // Clear existing timeout for this file
-    if (saveTimeouts.has(fileId)) {
-      clearTimeout(saveTimeouts.get(fileId));
-    }
-
-    // Set a new timeout (3000ms = 3s of inactivity)
-    const timeout = setTimeout(async () => {
+    const now = Date.now();
+    const lastSaved = lastSavedAt.get(fileId) || 0;
+    
+    if( now - lastSaved >= 1000) {
       try {
         const binaryState = Buffer.from(Y.encodeStateAsUpdate(doc));
         const content = doc.getText("codemirror").toString();
+  
+        await File.findByIdAndUpdate(fileId, {
+          binaryState,
+          content,
+          modified: true,
+        });
+  
+        console.log(`[Yjs] Immediate Save Completed: ${fileId} (Content Length: ${content.length})`);
+      } catch (err) {
+        console.error(`[Yjs] Error during immediate save for ${fileId}:`, err);
+      }
+    }
 
-        await File.findByIdAndUpdate(
-          fileId,
-          {
-            binaryState,
+
+    if(saveTimeouts.has(fileId)){
+      clearTimeout(saveTimeouts.get(fileId));
+    }
+
+    const timeout = setTimeout(async () => {
+      try{
+          const binaryState = Buffer.from(Y.encodeStateAsUpdate(doc));
+          const content = doc.getText("codemirror").toString();
+
+          await File.findByIdAndUpdate(fileId, {
+            binaryState, 
             content,
             modified: true,
-          }
-        );
+          });
 
-        console.log(`[Yjs] Debounced Save Completed: ${fileId} (Content Length: ${content.length})`);
-        saveTimeouts.delete(fileId); // Clean up after successful save
-      } catch (err) {
-        console.error(`[Yjs] Error during debounced save for ${fileId}:`, err);
-      }
+          console.log(`[Yjs] Debounced Save Completed: ${fileId}`);
+        }catch(err){
+          console.error(`[Yjs] Error during debounced save for ${fileId}:`, err);
+        }
     }, 3000);
 
     saveTimeouts.set(fileId, timeout);
+    lastSavedAt.set(fileId, now);
+
   });
 }
