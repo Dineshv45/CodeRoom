@@ -525,6 +525,8 @@ function EditorPage() {
                   fileId={activeFile._id}
                   fileName={activeFile.fileName}
                   username={myUsername}
+                  runCode = {handleRun}
+                  setIsTerminalOpen={setIsTerminalOpen}
                 />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-4">

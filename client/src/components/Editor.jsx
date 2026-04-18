@@ -1,7 +1,7 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle, useState, useMemo } from "react";
 import { EditorState } from "@codemirror/state";
 import { EditorView, lineNumbers } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentMore, indentLess } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
 
 import { javascript } from "@codemirror/lang-javascript";
@@ -19,7 +19,7 @@ import { SocketIOProvider } from "y-socket.io";
 import { yCollab } from "y-codemirror.next";
 
 const Editor = forwardRef(
-  ({ fileId, fileName, username }, ref) => {
+  ({ fileId, fileName, username, runCode, setIsTerminalOpen }, ref) => {
     const editorContainerRef = useRef(null);
     const viewRef = useRef(null);
     const providerRef = useRef(null);
@@ -91,7 +91,33 @@ const Editor = forwardRef(
         extensions: [
           lineNumbers(),
           history(),
-          keymap.of([...defaultKeymap, ...historyKeymap]),
+          keymap.of([
+            {
+              key: "Tab",
+              run: (view) => {
+                if (view.state.selection.ranges.some((r) => !r.empty)) return indentMore(view);
+                view.dispatch(view.state.replaceSelection("    "));
+                return true;
+              },
+              shift: indentLess,
+            },
+            {
+              key: "control-Enter",
+              run: (view) =>{
+                runCode();
+                return true;
+              }
+            },
+            {
+              key: "control-`",
+              run: (view) => {
+                setIsTerminalOpen(prev => !prev);
+                return true;
+              }
+            },
+            ...defaultKeymap,
+            ...historyKeymap,
+          ]),
           closeBrackets(),
           oneDark,
           EditorView.lineWrapping,
