@@ -1,8 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useLocation, useNavigate, Outlet } from "react-router-dom";
 import toast from "react-hot-toast";
-import { requireAuth } from "../utils/requireAuth";
-import { jwtDecode } from "jwt-decode";
+import { useAuth } from "../context/AuthContext";
 import RoomsSidebar from "../components/RoomsSidebar";
 import UsersPanel from "../components/UsersPanel";
 import EmptyState from "../components/EmptyState";
@@ -25,7 +24,9 @@ function Home() {
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const token = localStorage.getItem("accessToken");
+  const { user, logout: contextLogout } = useAuth();
+  const token = localStorage.getItem("accessToken"); 
+  
   const isEditorOpen = location.pathname.startsWith("/editor/");
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
@@ -37,14 +38,7 @@ function Home() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [selectedRoomForInvite, setSelectedRoomForInvite] = useState(null);
 
-  const currentUserId = useMemo(() => {
-    if (!token) return null;
-    try {
-      return jwtDecode(token).userId;
-    } catch (e) {
-      return null;
-    }
-  }, [token]);
+  const currentUserId = user?._id || user?.userId;
 
   const currentRoomId = isEditorOpen ? location.pathname.split("/editor/")[1] : null;
 
@@ -67,9 +61,7 @@ function Home() {
         `${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/join`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: "include",
         },
       );
 
@@ -103,8 +95,8 @@ function Home() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
         body: JSON.stringify({ roomName: name.trim() }),
       });
 
@@ -137,7 +129,7 @@ function Home() {
         try {
           const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/leave`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
           });
           if (res.ok) {
             toast.success("Left room");
@@ -164,7 +156,7 @@ function Home() {
         try {
           const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}`, {
             method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
           });
           if (res.ok) {
             toast.success("Room deleted");
@@ -191,7 +183,7 @@ function Home() {
         try {
           const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${currentRoomId}/remove/${targetUserId}`, {
             method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
           });
           if (res.ok) {
             toast.success("User removed");
@@ -216,7 +208,7 @@ function Home() {
       const res = await fetch(
         `${import.meta.env.VITE_BACKEND_URL}/api/rooms/my`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
         },
       );
 
@@ -232,13 +224,12 @@ function Home() {
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    contextLogout();
     toast.success("Logged out successfully");
     navigate("/login");
   };
 
   useEffect(() => {
-    if (!requireAuth(navigate)) return;
     fetchRooms();
   }, []);
 

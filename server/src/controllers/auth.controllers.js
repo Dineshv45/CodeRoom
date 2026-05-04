@@ -90,9 +90,24 @@ export const login = async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save();
 
+    const isProduction = process.env.NODE_ENV === "production";
+
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "None" : "Lax",
+      maxAge: 30 * 60 * 1000, // 30 mins
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "None" : "Lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
     res.json({
-      accessToken,
-      refreshToken,
+      message: "Login successful",
       user: {
         id: user._id,
         username: user.username,
@@ -120,14 +135,37 @@ export const refreshAccessToken = async (req, res) => {
 
   try {
     const { refreshSecret } = getJwtConfig();
-
     jwt.verify(refreshToken, refreshSecret);
 
     const newAccessToken = generateAccessToken(user);
+    const isProduction = process.env.NODE_ENV === "production";
 
-    res.json({ accessToken: newAccessToken });
+    res.cookie("accessToken", newAccessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "None" : "Lax",
+      maxAge: 30 * 60 * 1000,
+    });
+
+    res.json({ message: "Token refreshed" });
   } catch {
     res.status(403).json({ message: "Expired refresh token" });
+  }
+};
+
+/* ================= LOGOUT ================= */
+export const logout = async (req, res) => {
+  try {
+    const { refreshToken } = req.cookies;
+    if (refreshToken) {
+      await User.findOneAndUpdate({ refreshToken }, { refreshToken: null });
+    }
+
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Logout failed" });
   }
 };
 /* ================= GOOGLE AUTH CALLBACK ================= */
@@ -146,7 +184,25 @@ export const googleAuthCallback = async (req, res) => {
 
     // Redirect to frontend with tokens
     // Note: In production, consider using secure, http-only cookies instead
-    res.redirect(`${process.env.FRONT_END_URL}/auth-success?token=${accessToken}&refreshToken=${refreshToken}`);
+    // res.redirect(`${process.env.FRONT_END_URL}/auth-success?token=${accessToken}&refreshToken=${refreshToken}`);
+
+    const isProduction = process.env.NODE_ENV === "production"; 
+    
+    res.cookie("accessToken", accessToken,{
+      httpOnly:true,
+      secure: isProduction,
+      sameSite: isProduction ? "None" : "Lax",
+      maxAge: 30 * 60 * 1000, 
+    });
+
+    res.cookie("refreshToken", refreshToken,{
+      httpOnly:true,
+      secure: isProduction,
+      sameSite: isProduction ? "None" : "Lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.redirect(`${process.env.FRONT_END_URL}/auth-success`);
   } catch (error) {
     console.error("Google auth callback error:", error);
     res.redirect(`${process.env.FRONT_END_URL}/login?error=server_error`);

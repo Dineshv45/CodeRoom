@@ -1,30 +1,29 @@
-import React, { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 const AuthSuccess = () => {
     const navigate = useNavigate();
-    const location = useLocation();
+    const { checkAuth } = useAuth();
+    const hasCalled = useRef(false);
 
     useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const token = params.get('token');
-        const refreshToken = params.get('refreshToken');
+        if (hasCalled.current) return;
+        hasCalled.current = true;
 
-        if (token && refreshToken) {
-            // Store tokens in localStorage
-            localStorage.setItem('accessToken', token);
-            localStorage.setItem('refreshToken', refreshToken);
-            
-            toast.success('Successfully logged in with Google!');
-            
-            // Redirect to home or dashboard
-            navigate('/');
-        } else {
-            toast.error('Authentication failed. Please try again.');
-            navigate('/login');
-        }
-    }, [location, navigate]);
+        const finalizeAuth = async () => {
+            const success = await checkAuth();
+            if (success) {
+                toast.success('Successfully logged in with Google!');
+                navigate('/');
+            } else {
+                toast.error('Authentication failed. Please login again.');
+                navigate('/login');
+            }
+        };
+        finalizeAuth();
+    }, [navigate, checkAuth]);
 
     return (
         <div className="flex h-screen w-full items-center justify-center bg-[#0a0a0a] text-white">

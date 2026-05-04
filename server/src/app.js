@@ -8,6 +8,7 @@ import authRoutes from "./routes/auth.routes.js";
 import roomRoutes from "./routes/room.routes.js";
 import compileRoutes from "./routes/compile.routes.js";
 import timelineRoutes from "./routes/timeline.routes.js";
+import cookieParser from "cookie-parser";
 
 
 const app = express();
@@ -20,11 +21,18 @@ export const allowedOrigins = [
 ];
 
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true
 }));
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.get("/", (req, res) => {
   res.send("CodeRoom Backend is running 🚀");

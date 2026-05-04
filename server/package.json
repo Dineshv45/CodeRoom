@@ -14,7 +14,9 @@
   "type": "module",
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
+    "axios": "^1.15.2",
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.2.4",
     "express": "^5.2.1",

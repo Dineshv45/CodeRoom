@@ -1,5 +1,5 @@
 import express from "express";
-import { register, login, refreshAccessToken, googleAuthCallback, verifyEmail } from "../controllers/auth.controllers.js";
+import { register, login, refreshAccessToken, googleAuthCallback, verifyEmail, logout } from "../controllers/auth.controllers.js";
 import { authMiddleware } from "../middleware/auth.middlewear.js";
 import { loginRateLimiter } from "../middleware/loginRateLimiter.js";
 import passport from "passport";
@@ -9,6 +9,7 @@ const router = express.Router();
 router.post("/register", register);
 router.get("/verify-email/:token", verifyEmail);
 router.post("/login", loginRateLimiter, login);
+router.post("/logout", logout);
 router.post("/refresh", refreshAccessToken);
 
 // Google OAuth routes

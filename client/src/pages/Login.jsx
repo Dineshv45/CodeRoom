@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import codeEditorIcon from "../assets/code-editor-icon.png";
+import { useAuth } from "../context/AuthContext";
 
 function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -25,6 +27,7 @@ function Login() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ identifier, password }),
+          credentials: "include",
         }
       );
 
@@ -36,9 +39,7 @@ function Login() {
         return;
       }
 
-      localStorage.setItem("accessToken", data.accessToken);
-      localStorage.setItem("refreshToken", data.refreshToken);
-
+      login(data.user);
       toast.success("Logged in successfully");
       navigate("/");
     } catch {

@@ -1,52 +1,48 @@
 import jwt from "jsonwebtoken";
 import { getJwtConfig } from "../config/jwt.js";
-import User from "../models/User.js"; // 👈 add this
+import User from "../models/User.js";
 
 export const authMiddleware = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader?.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "No token provided" });
-  }
-
-  const token = authHeader.split(" ")[1];
 
   try {
-    const { accessSecret } = getJwtConfig();
+    let token;
 
-    if (!accessSecret) {
-      console.error("JWT access secret missing in config");
-      return res.status(500).json({ message: "JWT access secret missing" });
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
     }
 
-    let decoded;
+    if(!token && req.cookies.accessToken){
+      token = req.cookies.accessToken;
+    }
+    
+    // Check if token is missing or a placeholder string from localStorage
+    if (!token || token === "null" || token === "undefined") {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const {accessSecret} = getJwtConfig();
+
     try {
-      decoded = jwt.verify(token, accessSecret);
-    } catch (verifyErr) {
-      console.error("JWT verification failed:", verifyErr.message);
+      const decodedToken = jwt.verify(token, accessSecret);
+      const user = await User.findById(decodedToken.userId);
+
+      if(!user){
+        return res.status(401).json({message:"User not found"})
+      }
+
+      req.user = {
+        userId:user._id.toString(),
+        username:user.username,
+      };
+      next();
+    } catch (jwtError) {
+      console.error("JWT Verification Error:", jwtError.message);
       return res.status(401).json({ message: "Invalid or expired token" });
     }
 
-    console.log("Decoded token:", decoded);
-
-    // CRITICAL CHECK — Verify user still exists
-    const user = await User.findById(decoded.userId);
-
-    if (!user) {
-      console.error(`User not found for ID: ${decoded.userId}`);
-      return res.status(401).json({ message: "User no longer exists" });
-    }
-
-    // Attach fresh user info
-    req.user = {
-      userId: user._id.toString(),
-      username: user.username,
-    };
-
-    console.log(`Authenticated user: ${user.username}`);
-    next();
-  } catch (err) {
-    console.error("Auth middleware error:", err);
-    return res.status(401).json({ message: "Invalid or expired token" });
+  } catch (error) {
+    console.error("Auth Middleware Error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

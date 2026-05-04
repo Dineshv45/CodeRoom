@@ -6,9 +6,8 @@ import {
   useLocation,
 } from "react-router-dom";
 import toast from "react-hot-toast";
-import { jwtDecode } from "jwt-decode";
 import { initSocket } from "../socket";
-import { requireAuth } from "../utils/requireAuth";
+import { useAuth } from "../context/AuthContext";
 import { Layout } from "lucide-react";
 
 import Editor from "../components/Editor";
@@ -48,35 +47,21 @@ function EditorPage() {
 
   const viewRef = useRef(view);
 
-  const myInfo = useMemo(() => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) return { username: null, userId: null };
-    try {
-      const decoded = jwtDecode(token);
-      return { username: decoded.username, userId: decoded.userId };
-    } catch (e) {
-      return { username: null, userId: null };
-    }
-  }, []);
-
-  const myUsername = myInfo.username;
-  const myUserId = myInfo.userId;
+  const { user } = useAuth();
+  const myUsername = user?.username;
+  const myUserId = user?._id || user?.userId;
 
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
 
   /* ---------- auth guard ---------- */
-  useEffect(() => {
-    if (!requireAuth(navigate)) return;
-  }, []);
+  // ProtectedRoute in App.jsx handles this now!
 
   const fetchWorkspace = async (currentFiles) => {
     try {
       const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/workspace`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-        },
+        credentials: "include",
       });
       const data = await res.json();
 
@@ -108,9 +93,7 @@ function EditorPage() {
   const fetchFiles = async () => {
     try {
       const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/files`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-        },
+        credentials: "include",
       });
       const data = await res.json();
       if (res.ok) {
@@ -124,18 +107,10 @@ function EditorPage() {
 
   /* ---------- socket lifecycle ---------- */
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) {
-      toast.error("Please login first");
-      localStorage.clear();
-      navigate("/login");
-      return;
-    }
-
     if (!roomId) return;
 
     // 1. Core Socket.io
-    const socket = initSocket({ token });
+    const socket = initSocket(); // No more token needed here!
     socketRef.current = socket;
 
     // 2. Initial Load
@@ -243,8 +218,8 @@ function EditorPage() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
           },
+          credentials: "include",
           body: JSON.stringify({
             activeFileId: activeFile._id
           }),
@@ -265,8 +240,8 @@ function EditorPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
         },
+        credentials: "include",
         body: JSON.stringify({
           fileName,
           fileType: "file",
@@ -299,9 +274,7 @@ function EditorPage() {
     try {
       const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/files/${fileId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-        },
+        credentials: "include",
       });
 
       if (res.ok) {
@@ -333,8 +306,8 @@ function EditorPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
           },
+          credentials: "include",
           body: JSON.stringify({
             language: activeFile.fileName.split('.').pop(),
             code: editorRef.current.getCode(),
@@ -363,7 +336,7 @@ function EditorPage() {
         try {
           const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}/leave`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+            credentials: "include",
           });
           if (res.ok) {
             toast.success("Left room");
@@ -387,7 +360,7 @@ function EditorPage() {
         try {
           const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/rooms/${roomId}`, {
             method: "DELETE",
-            headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+            credentials: "include",
           });
           if (res.ok) {
             toast.success("Room deleted");

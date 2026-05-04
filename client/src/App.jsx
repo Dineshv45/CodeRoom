@@ -11,6 +11,9 @@ import { Toaster } from "react-hot-toast";
 
 import { TimelineProvider } from "./context/TimelineContext.jsx";
 
+import { AuthProvider } from "./context/AuthContext.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+
 function App() {
   return (
    <>
@@ -28,6 +31,7 @@ function App() {
       </div>
 
       <BrowserRouter>
+      <AuthProvider>
       <TimelineProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -35,11 +39,21 @@ function App() {
           <Route path="/auth-success" element={<AuthSuccess />} />
           <Route path="/verify-success" element={<VerifySuccess />} />
           <Route path="/verify-error" element={<VerifyError />} />
-          <Route path="/" element={<Home />}>
-            <Route path="editor/:roomId" element={<EditorPage />} />
+          
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }>
+            <Route path="editor/:roomId" element={
+              <ProtectedRoute>
+                <EditorPage />
+              </ProtectedRoute>
+            } />
           </Route>
         </Routes>
         </TimelineProvider>
+        </AuthProvider>
       </BrowserRouter>
 
       </>

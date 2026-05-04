@@ -6,8 +6,9 @@ import app, { allowedOrigins } from "./app.js";
 import initSockets from "./sockets/index.js";
 import { connection } from "./config/connect.js";
 
-
 const server = http.createServer(app);
+
+
 
 const PORT = process.env.PORT;
 
